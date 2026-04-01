@@ -117,6 +117,68 @@ export interface PublicSettings {
   version: string
 }
 
+export type ChatMessageRole = 'user' | 'assistant'
+export type ChatMessageStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'stopped'
+
+export interface ChatAttachment {
+  id: number
+  conversation_id: number
+  message_id?: number | null
+  user_id: number
+  kind: 'image'
+  mime_type: string
+  original_name: string
+  size_bytes: number
+  storage_type: 'local'
+  storage_path: string
+  sha256: string
+  data_url?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatMessage {
+  id: number | string
+  conversation_id: number
+  user_id: number
+  role: ChatMessageRole
+  status: ChatMessageStatus
+  text: string
+  model: string
+  attachment_ids: number[]
+  attachments: ChatAttachment[]
+  error_message?: string
+  created_at: string
+  updated_at: string
+  is_temporary?: boolean
+}
+
+export interface ChatConversation {
+  id: number
+  user_id: number
+  api_key_id: number
+  title: string
+  model: string
+  last_message_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatApiKeyOption {
+  id: number
+  name: string
+  group_id: number
+  group_name: string
+  group_platform: 'openai' | 'anthropic'
+}
+
+export interface ChatModel {
+  id: string
+  display_name: string
+  supports_image_input: boolean
+  supports_stream: boolean
+}
+
 export interface AuthResponse {
   access_token: string
   refresh_token?: string  // New: Refresh Token for token renewal

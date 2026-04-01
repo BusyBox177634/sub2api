@@ -352,6 +352,7 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     docs: 'Docs',
+    chat: 'Chat',
     sora: 'Sora Studio'
   },
 
@@ -4913,6 +4914,43 @@ export default {
         description: '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;">Click to confirm and create your API key.</p><div style="padding: 8px 12px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>⚠️ Important:</b><ul style="margin: 8px 0 0 16px;"><li>Copy the key (sk-xxx) immediately after creation</li><li>Key is only shown once, need to regenerate if lost</li></ul></div><p style="padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>🚀 How to Use:</b><br/>Configure the key in any OpenAI-compatible client (like ChatBox, OpenCat, etc.) and start using!</p><p style="margin-top: 12px; color: #10b981; font-weight: 600;">👉 Click "Create" button</p></div>'
       }
     }
+  },
+
+  chat: {
+    title: 'Chat',
+    description: 'Built-in web chat with saved per-user history',
+    sidebarEyebrow: 'Workspace',
+    headerEyebrow: 'Live Session',
+    apiKeyLabel: 'API Key',
+    modelLabel: 'Model',
+    emptyConversationsTitle: 'No conversations yet',
+    emptyConversationsDesc: 'Create your first conversation to start chatting with your configured models.',
+    untitledConversation: 'Untitled conversation',
+    emptyTitle: 'Start a new conversation',
+    emptyDesc: 'Choose an API key, pick a model, and chat in the browser. Image upload, paste, and drag-and-drop are supported when the current model allows image input.',
+    youLabel: 'You',
+    assistantLabel: 'Assistant',
+    failed: 'Failed',
+    stopped: 'Stopped',
+    streaming: 'Streaming',
+    stopGenerating: 'Stop',
+    waitingResponse: 'Waiting for model response...',
+    inputPlaceholder: 'Ask anything, or paste / drag an image here...',
+    inputPlaceholderNoImage: 'Ask anything...',
+    imageHint: 'Supports paste, drag-and-drop, and image upload.',
+    noImageHint: 'The current model does not support image input.',
+    selectApiKeyFirst: 'Please select an API key and model first.',
+    createConversationFailed: 'Failed to create conversation.',
+    updateConversationFailed: 'Failed to update conversation.',
+    renamePrompt: 'Rename conversation',
+    renameConversationFailed: 'Failed to rename conversation.',
+    deleteConversationConfirm: 'Delete this conversation? Local attachments in this conversation will also be removed.',
+    deleteConversationFailed: 'Failed to delete conversation.',
+    onlyImageSupported: 'Only image uploads are supported right now.',
+    uploadFailed: 'Failed to upload attachment.',
+    removeAttachmentFailed: 'Failed to remove attachment.',
+    streamFailed: 'Streaming request failed.',
+    loadFailed: 'Failed to load chat data.'
   },
 
   // Sora Studio

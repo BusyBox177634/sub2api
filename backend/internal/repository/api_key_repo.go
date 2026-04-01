@@ -314,6 +314,7 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 	}
 
 	keys, err := q.
+		WithUser().
 		WithGroup().
 		Offset(params.Offset()).
 		Limit(params.Limit()).
