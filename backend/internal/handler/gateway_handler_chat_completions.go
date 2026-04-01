@@ -76,6 +76,15 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	reqModel := modelResult.String()
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -241,6 +250,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		responseFormat := service.UsageLogDetailResponseFormatJSON
+		if result.Stream {
+			responseFormat = service.UsageLogDetailResponseFormatSSE
+		}
+		usageDetail := buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
 
 		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
@@ -255,6 +269,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
+				UsageDetail:        usageDetail,
 			}); err != nil {
 				reqLog.Error("gateway.cc.record_usage_failed",
 					zap.Int64("account_id", account.ID),

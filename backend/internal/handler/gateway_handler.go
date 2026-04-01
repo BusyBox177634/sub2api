@@ -188,6 +188,15 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	// Track if we've started streaming (for error handling)
 	streamStarted := false
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 
 	// 绑定错误透传服务，允许 service 层在非 failover 错误场景复用规则。
 	if h.errorPassthroughService != nil {
@@ -458,6 +467,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			requestPayloadHash := service.HashUsageRequestPayload(body)
 			inboundEndpoint := GetInboundEndpoint(c)
 			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+			responseFormat := service.UsageLogDetailResponseFormatJSON
+			if result.Stream {
+				responseFormat = service.UsageLogDetailResponseFormatSSE
+			}
+			usageDetail := buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
 
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
@@ -478,6 +492,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					RequestPayloadHash: requestPayloadHash,
 					ForceCacheBilling:  fs.ForceCacheBilling,
 					APIKeyService:      h.apiKeyService,
+					UsageDetail:        usageDetail,
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.gateway.messages"),
@@ -790,6 +805,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			requestPayloadHash := service.HashUsageRequestPayload(body)
 			inboundEndpoint := GetInboundEndpoint(c)
 			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+			responseFormat := service.UsageLogDetailResponseFormatJSON
+			if result.Stream {
+				responseFormat = service.UsageLogDetailResponseFormatSSE
+			}
+			usageDetail := buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
 
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
@@ -810,6 +830,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					RequestPayloadHash: requestPayloadHash,
 					ForceCacheBilling:  fs.ForceCacheBilling,
 					APIKeyService:      h.apiKeyService,
+					UsageDetail:        usageDetail,
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.gateway.messages"),

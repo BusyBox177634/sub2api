@@ -230,6 +230,7 @@ type OpenAIForwardResult struct {
 	ResponseHeaders http.Header
 	Duration        time.Duration
 	FirstTokenMs    *int
+	UsageDetailResponsePayload []byte
 }
 
 type OpenAIWSRetryMetricsSnapshot struct {
@@ -305,6 +306,7 @@ var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICo
 type OpenAIGatewayService struct {
 	accountRepo           AccountRepository
 	usageLogRepo          UsageLogRepository
+	usageDetailRepo       UsageLogDetailRepository
 	usageBillingRepo      UsageBillingRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
@@ -337,6 +339,7 @@ type OpenAIGatewayService struct {
 	openaiWSRetryMetrics  openAIWSRetryMetrics
 	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
 	codexSnapshotThrottle *accountWriteThrottle
+	settingService        *SettingService
 }
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
@@ -389,6 +392,14 @@ func NewOpenAIGatewayService(
 	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
+}
+
+func (s *OpenAIGatewayService) SetUsageLogDetailRepo(repo UsageLogDetailRepository) {
+	s.usageDetailRepo = repo
+}
+
+func (s *OpenAIGatewayService) SetSettingService(settingService *SettingService) {
+	s.settingService = settingService
 }
 
 func (s *OpenAIGatewayService) getCodexSnapshotThrottle() *accountWriteThrottle {
@@ -2271,6 +2282,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		// Handle normal response
 		var usage *OpenAIUsage
 		var firstTokenMs *int
+		var responsePayload []byte
 		if reqStream {
 			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
 			if err != nil {
@@ -2278,6 +2290,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 			usage = streamResult.usage
 			firstTokenMs = streamResult.firstTokenMs
+			responsePayload = streamResult.responsePayload
 		} else {
 			usage, err = s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
 			if err != nil {
@@ -2300,16 +2313,17 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		serviceTier := extractOpenAIServiceTier(reqBody)
 
 		return &OpenAIForwardResult{
-			RequestID:       resp.Header.Get("x-request-id"),
-			Usage:           *usage,
-			Model:           originalModel,
-			UpstreamModel:   upstreamModel,
-			ServiceTier:     serviceTier,
-			ReasoningEffort: reasoningEffort,
-			Stream:          reqStream,
-			OpenAIWSMode:    false,
-			Duration:        time.Since(startTime),
-			FirstTokenMs:    firstTokenMs,
+			RequestID:                 resp.Header.Get("x-request-id"),
+			Usage:                     *usage,
+			Model:                     originalModel,
+			UpstreamModel:             upstreamModel,
+			ServiceTier:               serviceTier,
+			ReasoningEffort:           reasoningEffort,
+			Stream:                    reqStream,
+			OpenAIWSMode:              false,
+			Duration:                  time.Since(startTime),
+			FirstTokenMs:              firstTokenMs,
+			UsageDetailResponsePayload: responsePayload,
 		}, nil
 	}
 }
@@ -2436,6 +2450,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 
 	var usage *OpenAIUsage
 	var firstTokenMs *int
+	var responsePayload []byte
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime)
 		if err != nil {
@@ -2443,6 +2458,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		}
 		usage = result.usage
 		firstTokenMs = result.firstTokenMs
+		responsePayload = result.responsePayload
 	} else {
 		usage, err = s.handleNonStreamingResponsePassthrough(ctx, resp, c)
 		if err != nil {
@@ -2459,15 +2475,16 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 
 	return &OpenAIForwardResult{
-		RequestID:       resp.Header.Get("x-request-id"),
-		Usage:           *usage,
-		Model:           reqModel,
-		ServiceTier:     extractOpenAIServiceTierFromBody(body),
-		ReasoningEffort: reasoningEffort,
-		Stream:          reqStream,
-		OpenAIWSMode:    false,
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
+		RequestID:                 resp.Header.Get("x-request-id"),
+		Usage:                     *usage,
+		Model:                     reqModel,
+		ServiceTier:               extractOpenAIServiceTierFromBody(body),
+		ReasoningEffort:           reasoningEffort,
+		Stream:                    reqStream,
+		OpenAIWSMode:              false,
+		Duration:                  time.Since(startTime),
+		FirstTokenMs:              firstTokenMs,
+		UsageDetailResponsePayload: responsePayload,
 	}, nil
 }
 
@@ -2709,8 +2726,9 @@ func collectOpenAIPassthroughTimeoutHeaders(h http.Header) []string {
 }
 
 type openaiStreamingResultPassthrough struct {
-	usage        *OpenAIUsage
-	firstTokenMs *int
+	usage           *OpenAIUsage
+	firstTokenMs    *int
+	responsePayload []byte
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
@@ -2739,6 +2757,8 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	var finalResponse []byte
+	var outputTextBuilder strings.Builder
 	clientDisconnected := false
 	sawDone := false
 	sawTerminalEvent := false
@@ -2763,6 +2783,13 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			}
 			if openAIStreamEventIsTerminal(trimmedData) {
 				sawTerminalEvent = true
+				responseRaw := strings.TrimSpace(gjson.GetBytes(dataBytes, "response").Raw)
+				if responseRaw != "" && gjson.Valid(responseRaw) {
+					finalResponse = []byte(responseRaw)
+				}
+			}
+			if strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String()) == "response.output_text.delta" {
+				outputTextBuilder.WriteString(gjson.GetBytes(dataBytes, "delta").String())
 			}
 			if firstTokenMs == nil && trimmedData != "" && trimmedData != "[DONE]" {
 				ms := int(time.Since(startTime).Milliseconds())
@@ -2782,17 +2809,17 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	}
 	if err := scanner.Err(); err != nil {
 		if sawTerminalEvent {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, nil
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, nil
 		}
 		if clientDisconnected {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream usage incomplete after disconnect: %w", err)
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, fmt.Errorf("stream usage incomplete after disconnect: %w", err)
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream usage incomplete: %w", err)
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, fmt.Errorf("stream usage incomplete: %w", err)
 		}
 		if errors.Is(err, bufio.ErrTooLong) {
 			logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, err)
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, err
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, err
 		}
 		logger.LegacyPrintf("service.openai_gateway",
 			"[OpenAI passthrough] 流读取异常中断: account=%d request_id=%s err=%v",
@@ -2800,7 +2827,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			upstreamRequestID,
 			err,
 		)
-		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", err)
+		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, fmt.Errorf("stream read error: %w", err)
 	}
 	if !clientDisconnected && !sawDone && !sawTerminalEvent && ctx.Err() == nil {
 		logger.FromContext(ctx).With(
@@ -2808,10 +2835,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			zap.Int64("account_id", account.ID),
 			zap.String("upstream_request_id", upstreamRequestID),
 		).Info("OpenAI passthrough 上游流在未收到 [DONE] 时结束，疑似断流")
-		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, errors.New("stream usage incomplete: missing terminal event")
+		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, errors.New("stream usage incomplete: missing terminal event")
 	}
 
-	return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs}, nil
+	return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String())}, nil
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
@@ -3266,8 +3293,9 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 
 // openaiStreamingResult streaming response result
 type openaiStreamingResult struct {
-	usage        *OpenAIUsage
-	firstTokenMs *int
+	usage           *OpenAIUsage
+	firstTokenMs    *int
+	responsePayload []byte
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
@@ -3302,6 +3330,8 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	var finalResponse []byte
+	var outputTextBuilder strings.Builder
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
@@ -3369,7 +3399,11 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 	needModelReplace := originalModel != mappedModel
 	resultWithUsage := func() *openaiStreamingResult {
-		return &openaiStreamingResult{usage: usage, firstTokenMs: firstTokenMs}
+		return &openaiStreamingResult{
+			usage:           usage,
+			firstTokenMs:    firstTokenMs,
+			responsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String()),
+		}
 	}
 	finalizeStream := func() (*openaiStreamingResult, error) {
 		if !clientDisconnected {
@@ -3423,6 +3457,13 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			dataBytes := []byte(data)
 			if openAIStreamEventIsTerminal(data) {
 				sawTerminalEvent = true
+				responseRaw := strings.TrimSpace(gjson.GetBytes(dataBytes, "response").Raw)
+				if responseRaw != "" && gjson.Valid(responseRaw) {
+					finalResponse = []byte(responseRaw)
+				}
+			}
+			if strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String()) == "response.output_text.delta" {
+				outputTextBuilder.WriteString(gjson.GetBytes(dataBytes, "delta").String())
 			}
 
 			// Correct Codex tool calls if needed (apply_patch -> edit, etc.)
@@ -4110,6 +4151,7 @@ type OpenAIRecordUsageInput struct {
 	IPAddress          string // 请求的客户端 IP 地址
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
+	UsageDetail        *UsageLogDetailCapture
 }
 
 // RecordUsage records usage and deducts balance
@@ -4221,8 +4263,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
+	var usageDetail *UsageLogDetail
+	if s.settingService != nil && s.settingService.IsUsageMessageRetentionEnabled(ctx) {
+		usageDetail = BuildUsageLogDetailFromCapture(input.UsageDetail)
+	}
+
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+		writeUsageLogAndDetailBestEffort(ctx, s.usageLogRepo, s.usageDetailRepo, usageLog, usageDetail, "service.openai_gateway")
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -4246,7 +4293,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if billingErr != nil {
 		return billingErr
 	}
-	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+	writeUsageLogAndDetailBestEffort(ctx, s.usageLogRepo, s.usageDetailRepo, usageLog, usageDetail, "service.openai_gateway")
 
 	return nil
 }

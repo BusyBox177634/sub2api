@@ -79,6 +79,7 @@ type SystemSettings struct {
 	// Gateway forwarding behavior
 	EnableFingerprintUnification bool // 是否统一 OAuth 账号的指纹头（默认 true）
 	EnableMetadataPassthrough    bool // 是否透传客户端原始 metadata（默认 false）
+	UsageMessageRetentionEnabled bool // 是否保存使用记录的请求/响应消息详情（默认 false）
 }
 
 type DefaultSubscriptionSetting struct {

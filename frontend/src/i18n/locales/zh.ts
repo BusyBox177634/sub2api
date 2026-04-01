@@ -775,7 +775,20 @@ export default {
     exportExcelSuccess: '使用数据导出成功（Excel格式）',
     exportExcelFailed: '使用数据导出失败',
     imageUnit: '张',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    detailButton: '消息详情',
+    detailTitle: '消息详情',
+    sentMessages: '发送消息',
+    receivedMessages: '接收消息',
+    requestJson: '请求 JSON',
+    responseJson: '响应 JSON',
+    noMessages: '这条记录暂无可解析的消息内容。',
+    unavailable: '这条记录暂时无法查看消息详情。',
+    unavailableDisabled: '设置中未开启消息留存。只有开启之后产生的新记录才会保存详情。',
+    unavailableHistorical: '这条记录生成于消息留存开启之前，因此没有可用的详情快照。',
+    unavailableNotCaptured: '这条记录没有可展示的消息正文。',
+    copyJson: '复制 JSON',
+    jsonCopied: 'JSON 已复制'
   },
 
   // Redeem
@@ -4353,6 +4366,8 @@ export default {
         fingerprintUnificationHint: '统一共享同一 OAuth 账号的用户的 X-Stainless-* 请求头。关闭后透传客户端原始请求头。',
         metadataPassthrough: 'Metadata 透传',
         metadataPassthroughHint: '透传客户端原始 metadata.user_id，不进行重写。可能提高上游缓存命中率。',
+        usageMessageRetention: '使用记录消息留存',
+        usageMessageRetentionHint: '为新产生的使用记录保存脱敏后的请求/响应消息快照。默认关闭，只对开启后的新记录生效。',
       },
       site: {
         title: '站点设置',

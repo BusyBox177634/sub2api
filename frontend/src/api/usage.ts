@@ -6,6 +6,7 @@
 import { apiClient } from './client'
 import type {
   UsageLog,
+  UsageLogDetailResponse,
   UsageQueryParams,
   UsageStatsResponse,
   PaginatedResponse,
@@ -189,6 +190,11 @@ export async function getById(id: number): Promise<UsageLog> {
   return data
 }
 
+export async function getDetail(id: number): Promise<UsageLogDetailResponse> {
+  const { data } = await apiClient.get<UsageLogDetailResponse>(`/usage/${id}/detail`)
+  return data
+}
+
 // ==================== Dashboard API ====================
 
 /**
@@ -264,6 +270,7 @@ export const usageAPI = {
   getStatsByDateRange,
   getByDateRange,
   getById,
+  getDetail,
   // Dashboard
   getDashboardStats,
   getDashboardTrend,

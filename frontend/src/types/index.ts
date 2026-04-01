@@ -1124,6 +1124,25 @@ export interface AdminUsageLog extends UsageLog {
   account?: UsageLogAccountSummary
 }
 
+export type UsageLogDetailUnavailableReason = 'disabled' | 'historical' | 'not_captured'
+
+export interface UsageLogMessage {
+  role: 'system' | 'developer' | 'user' | 'assistant' | 'tool' | 'unknown'
+  source: 'request' | 'response' | 'unknown'
+  text: string
+}
+
+export interface UsageLogDetailResponse {
+  available: boolean
+  reason?: UsageLogDetailUnavailableReason
+  request_messages: UsageLogMessage[]
+  response_messages: UsageLogMessage[]
+  request_payload_json?: string
+  response_payload_json?: string
+  request_truncated: boolean
+  response_truncated: boolean
+}
+
 export interface UsageCleanupFilters {
   start_time: string
   end_time: string

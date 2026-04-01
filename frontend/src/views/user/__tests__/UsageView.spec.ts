@@ -4,9 +4,10 @@ import { nextTick } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
-const { query, getStatsByDateRange, list, showError, showWarning, showSuccess, showInfo } = vi.hoisted(() => ({
+const { query, getStatsByDateRange, getDetail, list, showError, showWarning, showSuccess, showInfo } = vi.hoisted(() => ({
   query: vi.fn(),
   getStatsByDateRange: vi.fn(),
+  getDetail: vi.fn(),
   list: vi.fn(),
   showError: vi.fn(),
   showWarning: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('@/api', () => ({
   usageAPI: {
     query,
     getStatsByDateRange,
+    getDetail,
   },
   keysAPI: {
     list,
@@ -76,6 +78,7 @@ describe('user UsageView tooltip', () => {
   beforeEach(() => {
     query.mockReset()
     getStatsByDateRange.mockReset()
+    getDetail.mockReset()
     list.mockReset()
     showError.mockReset()
     showWarning.mockReset()
@@ -147,6 +150,7 @@ describe('user UsageView tooltip', () => {
           Select: true,
           DateRangePicker: true,
           Icon: true,
+          UsageLogDetailDialog: true,
           Teleport: true,
         },
       },
@@ -181,6 +185,78 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('$0.092883')
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
+  })
+
+  it('loads usage detail when detail action is triggered', async () => {
+    query.mockResolvedValue({
+      items: [
+        {
+          id: 99,
+          request_id: 'req-user-detail',
+          actual_cost: 0.1,
+          total_cost: 0.1,
+          rate_multiplier: 1,
+          input_cost: 0,
+          output_cost: 0,
+          cache_creation_cost: 0,
+          cache_read_cost: 0,
+          input_tokens: 1,
+          output_tokens: 1,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          cache_creation_5m_tokens: 0,
+          cache_creation_1h_tokens: 0,
+          image_count: 0,
+          image_size: null,
+          first_token_ms: null,
+          duration_ms: 1,
+          created_at: '2026-03-08T00:00:00Z',
+          model: 'gpt-5.4',
+          reasoning_effort: null,
+        },
+      ],
+      total: 1,
+      pages: 1,
+    })
+    getStatsByDateRange.mockResolvedValue({
+      total_requests: 1,
+      total_tokens: 2,
+      total_cost: 0.1,
+      avg_duration_ms: 1,
+    })
+    list.mockResolvedValue({ items: [] })
+    getDetail.mockResolvedValue({
+      available: true,
+      request_messages: [{ role: 'user', source: 'request', text: 'hello' }],
+      response_messages: [{ role: 'assistant', source: 'response', text: 'world' }],
+      request_truncated: false,
+      response_truncated: false,
+    })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          TablePageLayout: TablePageLayoutStub,
+          Pagination: true,
+          EmptyState: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          UsageLogDetailDialog: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    const setupState = (wrapper.vm as any).$?.setupState
+    await setupState.openDetail({ id: 99 })
+    await flushPromises()
+
+    expect(getDetail).toHaveBeenCalledWith(99)
+    expect(setupState.detailDialogVisible).toBe(true)
+    expect(setupState.detailData.available).toBe(true)
   })
 
   it('exports csv with input and output unit price columns', async () => {
@@ -245,6 +321,7 @@ describe('user UsageView tooltip', () => {
           Select: true,
           DateRangePicker: true,
           Icon: true,
+          UsageLogDetailDialog: true,
           Teleport: true,
         },
       },

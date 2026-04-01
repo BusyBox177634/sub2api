@@ -17,6 +17,7 @@ import (
 type userUsageRepoCapture struct {
 	service.UsageLogRepository
 	listFilters usagestats.UsageLogFilters
+	record      *service.UsageLog
 }
 
 func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
@@ -29,6 +30,13 @@ func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagin
 	}, nil
 }
 
+func (s *userUsageRepoCapture) GetByID(ctx context.Context, id int64) (*service.UsageLog, error) {
+	if s.record != nil {
+		return s.record, nil
+	}
+	return &service.UsageLog{ID: id, UserID: 42, APIKeyID: 7, RequestID: "req-detail"}, nil
+}
+
 func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo, nil, nil, nil)
@@ -39,6 +47,7 @@ func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
 		c.Next()
 	})
 	router.GET("/usage", handler.List)
+	router.GET("/usage/:id/detail", handler.GetDetail)
 	return router
 }
 
@@ -77,4 +86,31 @@ func TestUserUsageListInvalidStream(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUserUsageDetailOwnRecord(t *testing.T) {
+	repo := &userUsageRepoCapture{
+		record: &service.UsageLog{ID: 1, UserID: 42, APIKeyID: 7, RequestID: "req-own"},
+	}
+	router := newUserUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/1/detail", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"available":false`)
+}
+
+func TestUserUsageDetailRejectsForeignRecord(t *testing.T) {
+	repo := &userUsageRepoCapture{
+		record: &service.UsageLog{ID: 2, UserID: 99, APIKeyID: 7, RequestID: "req-foreign"},
+	}
+	router := newUserUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/2/detail", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
 }

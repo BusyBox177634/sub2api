@@ -75,6 +75,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -254,6 +263,21 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
+		var usageDetail *service.UsageLogDetailCapture
+		if result != nil && len(result.UsageDetailResponsePayload) > 0 {
+			usageDetail = &service.UsageLogDetailCapture{
+				RequestBody:       cloneUsageDetailBytes(body),
+				ResponseBody:      cloneUsageDetailBytes(result.UsageDetailResponsePayload),
+				ResponseBodyBytes: len(result.UsageDetailResponsePayload),
+				ResponseFormat:    service.UsageLogDetailResponseFormatJSON,
+			}
+		} else {
+			responseFormat := service.UsageLogDetailResponseFormatJSON
+			if result != nil && result.Stream {
+				responseFormat = service.UsageLogDetailResponseFormatSSE
+			}
+			usageDetail = buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
+		}
 
 		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -267,6 +291,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 				UserAgent:        userAgent,
 				IPAddress:        clientIP,
 				APIKeyService:    h.apiKeyService,
+				UsageDetail:      usageDetail,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.chat_completions"),

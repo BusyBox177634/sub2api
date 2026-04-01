@@ -93,6 +93,18 @@ const gatewayForwardingCacheTTL = 60 * time.Second
 const gatewayForwardingErrorTTL = 5 * time.Second
 const gatewayForwardingDBTimeout = 5 * time.Second
 
+type cachedUsageMessageRetention struct {
+	value     bool
+	expiresAt int64 // unix nano
+}
+
+var usageMessageRetentionCache atomic.Value // *cachedUsageMessageRetention
+var usageMessageRetentionSF singleflight.Group
+
+const usageMessageRetentionCacheTTL = 60 * time.Second
+const usageMessageRetentionErrorTTL = 5 * time.Second
+const usageMessageRetentionDBTimeout = 5 * time.Second
+
 // DefaultSubscriptionGroupReader validates group references used by default subscriptions.
 type DefaultSubscriptionGroupReader interface {
 	GetByID(ctx context.Context, id int64) (*Group, error)
@@ -527,6 +539,7 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	// Gateway forwarding behavior
 	updates[SettingKeyEnableFingerprintUnification] = strconv.FormatBool(settings.EnableFingerprintUnification)
 	updates[SettingKeyEnableMetadataPassthrough] = strconv.FormatBool(settings.EnableMetadataPassthrough)
+	updates[SettingKeyUsageMessageRetentionEnabled] = strconv.FormatBool(settings.UsageMessageRetentionEnabled)
 
 	err = s.settingRepo.SetMultiple(ctx, updates)
 	if err == nil {
@@ -547,6 +560,11 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 			fingerprintUnification: settings.EnableFingerprintUnification,
 			metadataPassthrough:    settings.EnableMetadataPassthrough,
 			expiresAt:              time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
+		})
+		usageMessageRetentionSF.Forget("usage_message_retention")
+		usageMessageRetentionCache.Store(&cachedUsageMessageRetention{
+			value:     settings.UsageMessageRetentionEnabled,
+			expiresAt: time.Now().Add(usageMessageRetentionCacheTTL).UnixNano(),
 		})
 		if s.onUpdate != nil {
 			s.onUpdate() // Invalidate cache after settings update
@@ -699,6 +717,45 @@ func (s *SettingService) GetGatewayForwardingSettings(ctx context.Context) (fing
 		return r.fp, r.mp
 	}
 	return true, false // fail-open defaults
+}
+
+func (s *SettingService) IsUsageMessageRetentionEnabled(ctx context.Context) bool {
+	if cached, ok := usageMessageRetentionCache.Load().(*cachedUsageMessageRetention); ok && cached != nil {
+		if time.Now().UnixNano() < cached.expiresAt {
+			return cached.value
+		}
+	}
+
+	val, _, _ := usageMessageRetentionSF.Do("usage_message_retention", func() (any, error) {
+		if cached, ok := usageMessageRetentionCache.Load().(*cachedUsageMessageRetention); ok && cached != nil {
+			if time.Now().UnixNano() < cached.expiresAt {
+				return cached.value, nil
+			}
+		}
+
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), usageMessageRetentionDBTimeout)
+		defer cancel()
+
+		value, err := s.settingRepo.GetValue(dbCtx, SettingKeyUsageMessageRetentionEnabled)
+		if err != nil {
+			slog.Warn("failed to get usage message retention setting", "error", err)
+			usageMessageRetentionCache.Store(&cachedUsageMessageRetention{
+				value:     false,
+				expiresAt: time.Now().Add(usageMessageRetentionErrorTTL).UnixNano(),
+			})
+			return false, nil
+		}
+
+		enabled := value == "true"
+		usageMessageRetentionCache.Store(&cachedUsageMessageRetention{
+			value:     enabled,
+			expiresAt: time.Now().Add(usageMessageRetentionCacheTTL).UnixNano(),
+		})
+		return enabled, nil
+	})
+
+	enabled, _ := val.(bool)
+	return enabled
 }
 
 // IsEmailVerifyEnabled 检查是否开启邮件验证
@@ -860,6 +917,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 
 		// 分组隔离（默认不允许未分组 Key 调度）
 		SettingKeyAllowUngroupedKeyScheduling: "false",
+		SettingKeyUsageMessageRetentionEnabled: "false",
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -1005,6 +1063,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.EnableFingerprintUnification = true // default: enabled (current behavior)
 	}
 	result.EnableMetadataPassthrough = settings[SettingKeyEnableMetadataPassthrough] == "true"
+	result.UsageMessageRetentionEnabled = settings[SettingKeyUsageMessageRetentionEnabled] == "true"
 
 	return result
 }

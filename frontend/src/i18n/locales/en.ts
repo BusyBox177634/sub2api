@@ -770,7 +770,20 @@ export default {
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    detailButton: 'Details',
+    detailTitle: 'Message Details',
+    sentMessages: 'Sent Messages',
+    receivedMessages: 'Received Messages',
+    requestJson: 'Request JSON',
+    responseJson: 'Response JSON',
+    noMessages: 'No parsed messages available for this record.',
+    unavailable: 'Message details are unavailable for this record.',
+    unavailableDisabled: 'Message retention is disabled in settings. Only records captured after enabling it will have details.',
+    unavailableHistorical: 'This record was created before message retention was enabled, so no detail snapshot is available.',
+    unavailableNotCaptured: 'This record has no captured message body to display.',
+    copyJson: 'Copy JSON',
+    jsonCopied: 'JSON copied to clipboard'
   },
 
   // Redeem
@@ -4190,6 +4203,8 @@ export default {
         fingerprintUnificationHint: 'Unify X-Stainless-* headers across users sharing the same OAuth account. Disabling passes through each client\'s original headers.',
         metadataPassthrough: 'Metadata Passthrough',
         metadataPassthroughHint: 'Pass through client\'s original metadata.user_id without rewriting. May improve upstream cache hit rates.',
+        usageMessageRetention: 'Usage Message Retention',
+        usageMessageRetentionHint: 'Store sanitized request and response message snapshots for new usage records. Disabled by default and only applies to records created after enabling.',
       },
       site: {
         title: 'Site Settings',

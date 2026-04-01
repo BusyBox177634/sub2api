@@ -131,6 +131,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		BackendModeEnabled:                   settings.BackendModeEnabled,
 		EnableFingerprintUnification:         settings.EnableFingerprintUnification,
 		EnableMetadataPassthrough:            settings.EnableMetadataPassthrough,
+		UsageMessageRetentionEnabled:         settings.UsageMessageRetentionEnabled,
 	})
 }
 
@@ -215,6 +216,7 @@ type UpdateSettingsRequest struct {
 	// Gateway forwarding behavior
 	EnableFingerprintUnification *bool `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough    *bool `json:"enable_metadata_passthrough"`
+	UsageMessageRetentionEnabled *bool `json:"usage_message_retention_enabled"`
 }
 
 // UpdateSettings 更新系统设置
@@ -619,6 +621,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableMetadataPassthrough
 		}(),
+		UsageMessageRetentionEnabled: func() bool {
+			if req.UsageMessageRetentionEnabled != nil {
+				return *req.UsageMessageRetentionEnabled
+			}
+			return previousSettings.UsageMessageRetentionEnabled
+		}(),
 	}
 
 	if err := h.settingService.UpdateSettings(c.Request.Context(), settings); err != nil {
@@ -699,6 +707,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		BackendModeEnabled:                   updatedSettings.BackendModeEnabled,
 		EnableFingerprintUnification:         updatedSettings.EnableFingerprintUnification,
 		EnableMetadataPassthrough:            updatedSettings.EnableMetadataPassthrough,
+		UsageMessageRetentionEnabled:         updatedSettings.UsageMessageRetentionEnabled,
 	})
 }
 
@@ -876,6 +885,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.EnableMetadataPassthrough != after.EnableMetadataPassthrough {
 		changed = append(changed, "enable_metadata_passthrough")
+	}
+	if before.UsageMessageRetentionEnabled != after.UsageMessageRetentionEnabled {
+		changed = append(changed, "usage_message_retention_enabled")
 	}
 	return changed
 }

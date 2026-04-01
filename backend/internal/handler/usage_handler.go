@@ -174,6 +174,39 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 	response.Success(c, dto.UsageLogFromService(record))
 }
 
+// GetDetail handles getting usage message detail for a single usage record.
+// GET /api/v1/usage/:id/detail
+func (h *UsageHandler) GetDetail(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	usageID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid usage ID")
+		return
+	}
+
+	record, err := h.usageService.GetByID(c.Request.Context(), usageID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if record.UserID != subject.UserID {
+		response.Forbidden(c, "Not authorized to access this record")
+		return
+	}
+
+	detail, err := h.usageService.GetDetailByUsageLog(c.Request.Context(), record)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.UsageLogDetailFromService(detail))
+}
+
 // Stats handles getting usage statistics
 // GET /api/v1/usage/stats
 func (h *UsageHandler) Stats(c *gin.Context) {

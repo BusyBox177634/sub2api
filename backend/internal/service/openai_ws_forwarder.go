@@ -2117,6 +2117,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if responseID == "" && eventResponseID != "" {
 			responseID = eventResponseID
 		}
+		if responseField.Exists() && responseField.Type == gjson.JSON {
+			finalResponse = []byte(responseField.Raw)
+		}
 
 		isTokenEvent := isOpenAIWSTokenEvent(eventType)
 		if isTokenEvent {
@@ -2250,10 +2253,6 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				flushBufferedStreamEvents(eventType)
 				emitStreamMessage(message, isTerminalEvent)
 			}
-		} else {
-			if responseField.Exists() && responseField.Type == gjson.JSON {
-				finalResponse = []byte(responseField.Raw)
-			}
 		}
 
 		if isTerminalEvent {
@@ -2291,6 +2290,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		c.Data(http.StatusOK, "application/json", finalResponse)
 	} else {
 		flushStreamWriter(true)
+		if len(finalResponse) > 0 {
+			if needModelReplace {
+				finalResponse = s.replaceModelInResponseBody(finalResponse, mappedModel, originalModel)
+			}
+			finalResponse = s.correctToolCallsInResponseBody(finalResponse)
+		}
 	}
 
 	if responseID != "" && stateStore != nil {
@@ -2325,17 +2330,18 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	)
 
 	return &OpenAIForwardResult{
-		RequestID:       responseID,
-		Usage:           *usage,
-		Model:           originalModel,
-		UpstreamModel:   mappedModel,
-		ServiceTier:     extractOpenAIServiceTier(reqBody),
-		ReasoningEffort: extractOpenAIReasoningEffort(reqBody, originalModel),
-		Stream:          reqStream,
-		OpenAIWSMode:    true,
-		ResponseHeaders: lease.HandshakeHeaders(),
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
+		RequestID:                responseID,
+		Usage:                    *usage,
+		Model:                    originalModel,
+		UpstreamModel:            mappedModel,
+		ServiceTier:              extractOpenAIServiceTier(reqBody),
+		ReasoningEffort:          extractOpenAIReasoningEffort(reqBody, originalModel),
+		Stream:                   reqStream,
+		OpenAIWSMode:             true,
+		ResponseHeaders:          lease.HandshakeHeaders(),
+		Duration:                 time.Since(startTime),
+		FirstTokenMs:             firstTokenMs,
+		UsageDetailResponsePayload: finalResponse,
 	}, nil
 }
 
@@ -2757,6 +2763,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		responseID := ""
 		usage := OpenAIUsage{}
 		var firstTokenMs *int
+		var finalResponse []byte
+		var outputTextBuilder strings.Builder
 		reqStream := openAIWSPayloadBoolFromRaw(payload, "stream", true)
 		turnPreviousResponseID := openAIWSPayloadStringFromRaw(payload, "previous_response_id")
 		turnPreviousResponseIDKind := ClassifyOpenAIPreviousResponseIDKind(turnPreviousResponseID)
@@ -2790,9 +2798,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				)
 			}
 
-			eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(upstreamMessage)
+			eventType, eventResponseID, responseField := parseOpenAIWSEventEnvelope(upstreamMessage)
 			if responseID == "" && eventResponseID != "" {
 				responseID = eventResponseID
+			}
+			if responseField.Exists() && responseField.Type == gjson.JSON {
+				finalResponse = []byte(responseField.Raw)
+			}
+			if eventType == "response.output_text.delta" {
+				outputTextBuilder.WriteString(gjson.GetBytes(upstreamMessage, "delta").String())
 			}
 			if eventType != "" {
 				eventCount++
@@ -2937,17 +2951,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					)
 				}
 				return &OpenAIForwardResult{
-					RequestID:       responseID,
-					Usage:           usage,
-					Model:           originalModel,
-					UpstreamModel:   mappedModel,
-					ServiceTier:     extractOpenAIServiceTierFromBody(payload),
-					ReasoningEffort: extractOpenAIReasoningEffortFromBody(payload, originalModel),
-					Stream:          reqStream,
-					OpenAIWSMode:    true,
-					ResponseHeaders: lease.HandshakeHeaders(),
-					Duration:        time.Since(turnStart),
-					FirstTokenMs:    firstTokenMs,
+					RequestID:                responseID,
+					Usage:                    usage,
+					Model:                    originalModel,
+					UpstreamModel:            mappedModel,
+					ServiceTier:              extractOpenAIServiceTierFromBody(payload),
+					ReasoningEffort:          extractOpenAIReasoningEffortFromBody(payload, originalModel),
+					Stream:                   reqStream,
+					OpenAIWSMode:             true,
+					ResponseHeaders:          lease.HandshakeHeaders(),
+					Duration:                 time.Since(turnStart),
+					FirstTokenMs:             firstTokenMs,
+					UsageDetailResponsePayload: buildUsageLogResponsePayloadWithFallback(finalResponse, outputTextBuilder.String()),
 				}, nil
 			}
 		}

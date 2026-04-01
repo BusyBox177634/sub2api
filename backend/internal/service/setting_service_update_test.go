@@ -202,3 +202,14 @@ func TestParseDefaultSubscriptions_NormalizesValues(t *testing.T) {
 		{GroupID: 12, ValidityDays: MaxValidityDays},
 	}, got)
 }
+
+func TestSettingService_UpdateSettings_UsageMessageRetentionFlag(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		UsageMessageRetentionEnabled: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "true", repo.updates[SettingKeyUsageMessageRetentionEnabled])
+}

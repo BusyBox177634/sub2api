@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/google/wire"
@@ -405,6 +406,119 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	return svc
 }
 
+func ProvideUsageService(
+	usageRepo UsageLogRepository,
+	userRepo UserRepository,
+	entClient *dbent.Client,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	usageDetailRepo UsageLogDetailRepository,
+	settingService *SettingService,
+) *UsageService {
+	svc := NewUsageService(usageRepo, userRepo, entClient, authCacheInvalidator)
+	svc.SetUsageLogDetailRepo(usageDetailRepo)
+	svc.SetSettingService(settingService)
+	return svc
+}
+
+func ProvideGatewayService(
+	accountRepo AccountRepository,
+	groupRepo GroupRepository,
+	usageLogRepo UsageLogRepository,
+	usageBillingRepo UsageBillingRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	cache GatewayCache,
+	cfg *config.Config,
+	schedulerSnapshot *SchedulerSnapshotService,
+	concurrencyService *ConcurrencyService,
+	billingService *BillingService,
+	rateLimitService *RateLimitService,
+	billingCacheService *BillingCacheService,
+	identityService *IdentityService,
+	httpUpstream HTTPUpstream,
+	deferredService *DeferredService,
+	claudeTokenProvider *ClaudeTokenProvider,
+	sessionLimitCache SessionLimitCache,
+	rpmCache RPMCache,
+	digestStore *DigestSessionStore,
+	settingService *SettingService,
+	tlsFingerprintProfileService *TLSFingerprintProfileService,
+	usageDetailRepo UsageLogDetailRepository,
+) *GatewayService {
+	svc := NewGatewayService(
+		accountRepo,
+		groupRepo,
+		usageLogRepo,
+		usageBillingRepo,
+		userRepo,
+		userSubRepo,
+		userGroupRateRepo,
+		cache,
+		cfg,
+		schedulerSnapshot,
+		concurrencyService,
+		billingService,
+		rateLimitService,
+		billingCacheService,
+		identityService,
+		httpUpstream,
+		deferredService,
+		claudeTokenProvider,
+		sessionLimitCache,
+		rpmCache,
+		digestStore,
+		settingService,
+		tlsFingerprintProfileService,
+	)
+	svc.SetSettingService(settingService)
+	svc.SetUsageLogDetailRepo(usageDetailRepo)
+	return svc
+}
+
+func ProvideOpenAIGatewayService(
+	accountRepo AccountRepository,
+	usageLogRepo UsageLogRepository,
+	usageBillingRepo UsageBillingRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	cache GatewayCache,
+	cfg *config.Config,
+	schedulerSnapshot *SchedulerSnapshotService,
+	concurrencyService *ConcurrencyService,
+	billingService *BillingService,
+	rateLimitService *RateLimitService,
+	billingCacheService *BillingCacheService,
+	httpUpstream HTTPUpstream,
+	deferredService *DeferredService,
+	openAITokenProvider *OpenAITokenProvider,
+	usageDetailRepo UsageLogDetailRepository,
+	settingService *SettingService,
+) *OpenAIGatewayService {
+	svc := NewOpenAIGatewayService(
+		accountRepo,
+		usageLogRepo,
+		usageBillingRepo,
+		userRepo,
+		userSubRepo,
+		userGroupRateRepo,
+		cache,
+		cfg,
+		schedulerSnapshot,
+		concurrencyService,
+		billingService,
+		rateLimitService,
+		billingCacheService,
+		httpUpstream,
+		deferredService,
+		openAITokenProvider,
+	)
+	svc.SetUsageLogDetailRepo(usageDetailRepo)
+	svc.SetSettingService(settingService)
+	return svc
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// Core services
@@ -417,7 +531,7 @@ var ProviderSet = wire.NewSet(
 	NewProxyService,
 	NewRedeemService,
 	NewPromoService,
-	NewUsageService,
+	ProvideUsageService,
 	NewChatService,
 	NewChatAttachmentStorage,
 	NewDashboardService,
@@ -426,13 +540,13 @@ var ProviderSet = wire.NewSet(
 	NewBillingCacheService,
 	NewAnnouncementService,
 	NewAdminService,
-	NewGatewayService,
+	ProvideGatewayService,
 	ProvideSoraMediaStorage,
 	ProvideSoraMediaCleanupService,
 	ProvideSoraSDKClient,
 	wire.Bind(new(SoraClient), new(*SoraSDKClient)),
 	NewSoraGatewayService,
-	NewOpenAIGatewayService,
+	ProvideOpenAIGatewayService,
 	NewOAuthService,
 	NewOpenAIOAuthService,
 	NewGeminiOAuthService,

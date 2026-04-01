@@ -17,6 +17,7 @@ type adminUsageRepoCapture struct {
 	service.UsageLogRepository
 	listFilters  usagestats.UsageLogFilters
 	statsFilters usagestats.UsageLogFilters
+	record       *service.UsageLog
 }
 
 func (s *adminUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
@@ -34,12 +35,20 @@ func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters
 	return &usagestats.UsageStats{}, nil
 }
 
+func (s *adminUsageRepoCapture) GetByID(ctx context.Context, id int64) (*service.UsageLog, error) {
+	if s.record != nil {
+		return s.record, nil
+	}
+	return &service.UsageLog{ID: id, UserID: 1, APIKeyID: 2, RequestID: "req-admin"}, nil
+}
+
 func newAdminUsageRequestTypeTestRouter(repo *adminUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo, nil, nil, nil)
 	handler := NewUsageHandler(usageSvc, nil, nil, nil)
 	router := gin.New()
 	router.GET("/admin/usage", handler.List)
+	router.GET("/admin/usage/:id/detail", handler.GetDetail)
 	router.GET("/admin/usage/stats", handler.Stats)
 	return router
 }
@@ -137,4 +146,18 @@ func TestAdminUsageStatsInvalidStream(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestAdminUsageDetailReturnsDetailPayload(t *testing.T) {
+	repo := &adminUsageRepoCapture{
+		record: &service.UsageLog{ID: 3, UserID: 7, APIKeyID: 8, RequestID: "req-admin-detail"},
+	}
+	router := newAdminUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage/3/detail", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"available":false`)
 }

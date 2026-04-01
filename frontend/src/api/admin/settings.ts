@@ -90,6 +90,7 @@ export interface SystemSettings {
   // Gateway forwarding behavior
   enable_fingerprint_unification: boolean
   enable_metadata_passthrough: boolean
+  usage_message_retention_enabled: boolean
 }
 
 export interface UpdateSettingsRequest {
@@ -148,6 +149,7 @@ export interface UpdateSettingsRequest {
   allow_ungrouped_key_scheduling?: boolean
   enable_fingerprint_unification?: boolean
   enable_metadata_passthrough?: boolean
+  usage_message_retention_enabled?: boolean
 }
 
 /**

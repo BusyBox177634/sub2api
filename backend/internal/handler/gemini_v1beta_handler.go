@@ -212,6 +212,15 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 
 	// 1) user concurrency slot
 	streamStarted := false
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
 	}
@@ -507,6 +516,11 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		responseFormat := service.UsageLogDetailResponseFormatJSON
+		if result.Stream {
+			responseFormat = service.UsageLogDetailResponseFormatSSE
+		}
+		usageDetail := buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
 		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsageWithLongContext(ctx, &service.RecordUsageLongContextInput{
 				Result:                result,
@@ -523,6 +537,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				LongContextMultiplier: 2.0,    // 超出部分双倍计费
 				ForceCacheBilling:     fs.ForceCacheBilling,
 				APIKeyService:         h.apiKeyService,
+				UsageDetail:           usageDetail,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.gemini_v1beta.models"),

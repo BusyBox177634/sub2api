@@ -2,6 +2,7 @@ package openai_ws_v2
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -32,6 +33,7 @@ type RelayResult struct {
 	Usage                   Usage
 	RequestID               string
 	TerminalEventType       string
+	ResponsePayload         []byte
 	FirstTokenMs            *int
 	Duration                time.Duration
 	ClientToUpstreamFrames  int64
@@ -44,6 +46,7 @@ type RelayTurnResult struct {
 	Usage             Usage
 	RequestID         string
 	TerminalEventType string
+	ResponsePayload   []byte
 	Duration          time.Duration
 	FirstTokenMs      *int
 }
@@ -76,12 +79,14 @@ type RelayTraceEvent struct {
 }
 
 type relayState struct {
-	usage             Usage
-	requestModel      string
-	lastResponseID    string
-	terminalEventType string
-	firstTokenMs      *int
-	turnTimingByID    map[string]*relayTurnTiming
+	usage               Usage
+	requestModel        string
+	lastResponseID      string
+	terminalEventType   string
+	lastResponsePayload []byte
+	outputText          strings.Builder
+	firstTokenMs        *int
+	turnTimingByID      map[string]*relayTurnTiming
 }
 
 type relayExitSignal struct {
@@ -92,12 +97,13 @@ type relayExitSignal struct {
 }
 
 type observedUpstreamEvent struct {
-	terminal   bool
-	eventType  string
-	responseID string
-	usage      Usage
-	duration   time.Duration
-	firstToken *int
+	terminal        bool
+	eventType       string
+	responseID      string
+	responsePayload []byte
+	usage           Usage
+	duration        time.Duration
+	firstToken      *int
 }
 
 type relayTurnTiming struct {
@@ -544,6 +550,9 @@ func observeUpstreamMessage(
 		responseID = strings.TrimSpace(values[3].String())
 	}
 	now := nowFn()
+	if eventType == "response.output_text.delta" {
+		state.outputText.WriteString(strings.TrimSpace(gjson.GetBytes(message, "delta").String()))
+	}
 
 	if state.firstTokenMs == nil && isTokenEvent(eventType) {
 		ms := int(now.Sub(startAt).Milliseconds())
@@ -571,6 +580,14 @@ func observeUpstreamMessage(
 	}
 	observed.terminal = true
 	state.terminalEventType = eventType
+	responsePayloadRaw := strings.TrimSpace(gjson.GetBytes(message, "response").Raw)
+	if responsePayloadRaw != "" && gjson.Valid(responsePayloadRaw) {
+		observed.responsePayload = buildRelayResponsePayloadWithFallback([]byte(responsePayloadRaw), state.outputText.String())
+	} else {
+		observed.responsePayload = buildRelayResponsePayloadWithFallback(nil, state.outputText.String())
+	}
+	state.lastResponsePayload = append([]byte(nil), observed.responsePayload...)
+	state.outputText.Reset()
 	if responseID != "" {
 		state.lastResponseID = responseID
 		if turnTiming, ok := openAIWSRelayDeleteTurnTiming(state, responseID); ok {
@@ -606,6 +623,7 @@ func emitTurnComplete(
 		Usage:             observed.usage,
 		RequestID:         responseID,
 		TerminalEventType: observed.eventType,
+		ResponsePayload:   append([]byte(nil), observed.responsePayload...),
 		Duration:          observed.duration,
 		FirstTokenMs:      openAIWSRelayCloneIntPtr(observed.firstToken),
 	})
@@ -645,6 +663,72 @@ func openAIWSRelayCloneIntPtr(v *int) *int {
 	}
 	cloned := *v
 	return &cloned
+}
+
+func buildRelayResponsePayloadWithFallback(payload []byte, assistantText string) []byte {
+	if len(payload) > 0 && json.Valid(payload) {
+		copied := make([]byte, len(payload))
+		copy(copied, payload)
+		if len(extractResponsePayloadMessages(copied)) > 0 {
+			return copied
+		}
+	}
+	assistantText = strings.TrimSpace(assistantText)
+	if assistantText == "" {
+		return nil
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"type": "usage_detail_stream_snapshot",
+		"messages": []map[string]any{
+			{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "text", "text": assistantText},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil
+	}
+	return encoded
+}
+
+func extractResponsePayloadMessages(payload []byte) []string {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return nil
+	}
+	result := gjson.ParseBytes(payload)
+	candidates := []gjson.Result{
+		result.Get("output"),
+		result.Get("response.output"),
+		result.Get("messages"),
+	}
+	var messages []string
+	for _, candidate := range candidates {
+		if !candidate.Exists() || !candidate.IsArray() {
+			continue
+		}
+		candidate.ForEach(func(_, item gjson.Result) bool {
+			role := strings.TrimSpace(item.Get("role").String())
+			if role != "" && role != "assistant" {
+				return true
+			}
+			content := item.Get("content")
+			if !content.Exists() || !content.IsArray() {
+				return true
+			}
+			content.ForEach(func(_, part gjson.Result) bool {
+				text := strings.TrimSpace(part.Get("text").String())
+				if text != "" {
+					messages = append(messages, text)
+				}
+				return true
+			})
+			return true
+		})
+	}
+	return messages
 }
 
 func parseUsageAndAccumulate(
@@ -718,6 +802,7 @@ func enrichResult(result *RelayResult, state *relayState, duration time.Duration
 	result.Usage = state.usage
 	result.RequestID = state.lastResponseID
 	result.TerminalEventType = state.terminalEventType
+	result.ResponsePayload = append([]byte(nil), state.lastResponsePayload...)
 	result.FirstTokenMs = state.firstTokenMs
 }
 

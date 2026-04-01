@@ -173,6 +173,15 @@ func (h *SoraGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	streamStarted := false
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 
 	maxWait := service.CalculateMaxWait(subject.Concurrency)
@@ -403,6 +412,11 @@ func (h *SoraGatewayHandler) ChatCompletions(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		responseFormat := service.UsageLogDetailResponseFormatJSON
+		if result.Stream {
+			responseFormat = service.UsageLogDetailResponseFormatSSE
+		}
+		usageDetail := buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		h.submitUsageRecordTask(func(ctx context.Context) {
@@ -417,6 +431,7 @@ func (h *SoraGatewayHandler) ChatCompletions(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				UsageDetail:        usageDetail,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.sora_gateway.chat_completions"),

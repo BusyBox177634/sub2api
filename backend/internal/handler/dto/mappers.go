@@ -610,6 +610,41 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	}
 }
 
+func UsageLogDetailFromService(detail *service.UsageLogDetailView) *UsageLogDetailResponse {
+	if detail == nil {
+		return nil
+	}
+
+	response := &UsageLogDetailResponse{
+		Available:           detail.Available,
+		RequestMessages:     make([]UsageLogMessage, 0, len(detail.RequestMessages)),
+		ResponseMessages:    make([]UsageLogMessage, 0, len(detail.ResponseMessages)),
+		RequestPayloadJSON:  cloneString(detail.RequestPayloadJSON),
+		ResponsePayloadJSON: cloneString(detail.ResponsePayloadJSON),
+		RequestTruncated:    detail.RequestTruncated,
+		ResponseTruncated:   detail.ResponseTruncated,
+	}
+	if detail.Reason != nil {
+		value := string(*detail.Reason)
+		response.Reason = &value
+	}
+	for _, message := range detail.RequestMessages {
+		response.RequestMessages = append(response.RequestMessages, UsageLogMessage{
+			Role:   message.Role,
+			Source: message.Source,
+			Text:   message.Text,
+		})
+	}
+	for _, message := range detail.ResponseMessages {
+		response.ResponseMessages = append(response.ResponseMessages, UsageLogMessage{
+			Role:   message.Role,
+			Source: message.Source,
+			Text:   message.Text,
+		})
+	}
+	return response
+}
+
 func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTask {
 	if task == nil {
 		return nil
@@ -647,6 +682,14 @@ func requestTypeStringPtr(requestType *int16) *string {
 	}
 	value := service.RequestTypeFromInt16(*requestType).String()
 	return &value
+}
+
+func cloneString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
 }
 
 func SettingFromService(s *service.Setting) *Setting {

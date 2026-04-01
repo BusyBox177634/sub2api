@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
+const { list, getDetail, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -12,6 +12,7 @@ const { list, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
 
   return {
     list: vi.fn(),
+    getDetail: vi.fn(),
     getStats: vi.fn(),
     getSnapshotV2: vi.fn(),
     getById: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('@/api/admin', () => ({
 vi.mock('@/api/admin/usage', () => ({
   adminUsageAPI: {
     list: vi.fn(),
+    getDetail,
   },
 }))
 
@@ -109,6 +111,7 @@ describe('admin UsageView distribution metric toggles', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     list.mockReset()
+    getDetail.mockReset()
     getStats.mockReset()
     getSnapshotV2.mockReset()
     getById.mockReset()
@@ -150,6 +153,7 @@ describe('admin UsageView distribution metric toggles', () => {
           UsageExportProgress: true,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
+          UsageLogDetailDialog: true,
           Pagination: true,
           Select: true,
           DateRangePicker: true,
@@ -192,5 +196,48 @@ describe('admin UsageView distribution metric toggles', () => {
     expect(modelChart.find('.metric').text()).toBe('actual_cost')
     expect(groupChart.find('.metric').text()).toBe('actual_cost')
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads usage detail on demand', async () => {
+    getDetail.mockResolvedValue({
+      available: true,
+      request_messages: [{ role: 'user', source: 'request', text: 'hello' }],
+      response_messages: [{ role: 'assistant', source: 'response', text: 'world' }],
+      request_truncated: false,
+      response_truncated: false,
+    })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: true,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          UsageLogDetailDialog: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: ModelDistributionChartStub,
+          GroupDistributionChart: GroupDistributionChartStub,
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    await setupState.openDetail({ id: 321, request_id: 'req-admin-detail', model: 'gpt-5.4', created_at: '2026-03-08T00:00:00Z' })
+    await flushPromises()
+
+    expect(getDetail).toHaveBeenCalledWith(321)
+    expect(setupState.detailDialogVisible).toBe(true)
+    expect(setupState.detailData.available).toBe(true)
   })
 })

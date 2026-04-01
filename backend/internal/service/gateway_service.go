@@ -541,6 +541,7 @@ type GatewayService struct {
 	accountRepo           AccountRepository
 	groupRepo             GroupRepository
 	usageLogRepo          UsageLogRepository
+	usageDetailRepo       UsageLogDetailRepository
 	usageBillingRepo      UsageBillingRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
@@ -643,6 +644,14 @@ func NewGatewayService(
 		svc.initDebugGatewayBodyFile(path)
 	}
 	return svc
+}
+
+func (s *GatewayService) SetUsageLogDetailRepo(repo UsageLogDetailRepository) {
+	s.usageDetailRepo = repo
+}
+
+func (s *GatewayService) SetSettingService(settingService *SettingService) {
+	s.settingService = settingService
 }
 
 // GenerateSessionHash 从预解析请求计算粘性会话 hash
@@ -7410,6 +7419,7 @@ type RecordUsageInput struct {
 	RequestPayloadHash string             // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
 	ForceCacheBilling  bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
 	APIKeyService      APIKeyQuotaUpdater // 可选：用于更新API Key配额
+	UsageDetail        *UsageLogDetailCapture
 }
 
 // APIKeyQuotaUpdater defines the interface for updating API Key quota and rate limit usage
@@ -7851,8 +7861,13 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
+	var usageDetail *UsageLogDetail
+	if s.settingService != nil && s.settingService.IsUsageMessageRetentionEnabled(ctx) {
+		usageDetail = BuildUsageLogDetailFromCapture(input.UsageDetail)
+	}
+
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		writeUsageLogAndDetailBestEffort(ctx, s.usageLogRepo, s.usageDetailRepo, usageLog, usageDetail, "service.gateway")
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -7876,7 +7891,7 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 	if billingErr != nil {
 		return billingErr
 	}
-	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+	writeUsageLogAndDetailBestEffort(ctx, s.usageLogRepo, s.usageDetailRepo, usageLog, usageDetail, "service.gateway")
 
 	return nil
 }
@@ -7897,6 +7912,7 @@ type RecordUsageLongContextInput struct {
 	LongContextMultiplier float64            // 超出阈值部分的倍率（如 2.0）
 	ForceCacheBilling     bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
 	APIKeyService         APIKeyQuotaUpdater // API Key 配额服务（可选）
+	UsageDetail           *UsageLogDetailCapture
 }
 
 // RecordUsageWithLongContext 记录使用量并扣费，支持长上下文双倍计费（用于 Gemini）
@@ -8034,8 +8050,13 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
+	var usageDetail *UsageLogDetail
+	if s.settingService != nil && s.settingService.IsUsageMessageRetentionEnabled(ctx) {
+		usageDetail = BuildUsageLogDetailFromCapture(input.UsageDetail)
+	}
+
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		writeUsageLogAndDetailBestEffort(ctx, s.usageLogRepo, s.usageDetailRepo, usageLog, usageDetail, "service.gateway")
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -8059,7 +8080,7 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 	if billingErr != nil {
 		return billingErr
 	}
-	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+	writeUsageLogAndDetailBestEffort(ctx, s.usageLogRepo, s.usageDetailRepo, usageLog, usageDetail, "service.gateway")
 
 	return nil
 }

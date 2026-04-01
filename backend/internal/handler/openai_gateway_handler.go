@@ -165,6 +165,15 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	}
 	reqStream := streamResult.Bool()
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
 	if previousResponseID != "" {
 		previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
@@ -364,6 +373,21 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
+		var usageDetail *service.UsageLogDetailCapture
+		if result != nil && len(result.UsageDetailResponsePayload) > 0 {
+			usageDetail = &service.UsageLogDetailCapture{
+				RequestBody:       cloneUsageDetailBytes(body),
+				ResponseBody:      cloneUsageDetailBytes(result.UsageDetailResponsePayload),
+				ResponseBodyBytes: len(result.UsageDetailResponsePayload),
+				ResponseFormat:    service.UsageLogDetailResponseFormatJSON,
+			}
+		} else {
+			responseFormat := service.UsageLogDetailResponseFormatJSON
+			if result != nil && result.Stream {
+				responseFormat = service.UsageLogDetailResponseFormatSSE
+			}
+			usageDetail = buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
+		}
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		h.submitUsageRecordTask(func(ctx context.Context) {
@@ -379,6 +403,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
+				UsageDetail:        usageDetail,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.responses"),
@@ -545,6 +570,15 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	originalWriter := c.Writer
+	captureWriter := acquireUsageDetailCaptureWriter(originalWriter)
+	c.Writer = captureWriter
+	defer func() {
+		if c.Writer == captureWriter {
+			c.Writer = originalWriter
+		}
+		releaseUsageDetailCaptureWriter(captureWriter)
+	}()
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -745,6 +779,21 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
+		var usageDetail *service.UsageLogDetailCapture
+		if result != nil && len(result.UsageDetailResponsePayload) > 0 {
+			usageDetail = &service.UsageLogDetailCapture{
+				RequestBody:       cloneUsageDetailBytes(body),
+				ResponseBody:      cloneUsageDetailBytes(result.UsageDetailResponsePayload),
+				ResponseBodyBytes: len(result.UsageDetailResponsePayload),
+				ResponseFormat:    service.UsageLogDetailResponseFormatJSON,
+			}
+		} else {
+			responseFormat := service.UsageLogDetailResponseFormatJSON
+			if result != nil && result.Stream {
+				responseFormat = service.UsageLogDetailResponseFormatSSE
+			}
+			usageDetail = buildUsageDetailCaptureFromWriter(body, captureWriter, responseFormat)
+		}
 
 		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -759,6 +808,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
+				UsageDetail:        usageDetail,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.messages"),
@@ -1247,6 +1297,13 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			}
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
 			h.submitUsageRecordTask(func(taskCtx context.Context) {
+				usageDetail := &service.UsageLogDetailCapture{
+					RequestBody:             cloneUsageDetailBytes(firstMessage),
+					ResponseBody:            cloneUsageDetailBytes(result.UsageDetailResponsePayload),
+					ResponseBodyBytes:       len(result.UsageDetailResponsePayload),
+					ResponseCaptureTruncated: false,
+					ResponseFormat:          service.UsageLogDetailResponseFormatJSON,
+				}
 				if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 					Result:             result,
 					APIKey:             apiKey,
@@ -1259,6 +1316,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					IPAddress:          clientIP,
 					RequestPayloadHash: service.HashUsageRequestPayload(firstMessage),
 					APIKeyService:      h.apiKeyService,
+					UsageDetail:        usageDetail,
 				}); err != nil {
 					reqLog.Error("openai.websocket_record_usage_failed",
 						zap.Int64("account_id", account.ID),

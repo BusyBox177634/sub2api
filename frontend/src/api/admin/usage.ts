@@ -4,7 +4,13 @@
  */
 
 import { apiClient } from '../client'
-import type { AdminUsageLog, UsageQueryParams, PaginatedResponse, UsageRequestType } from '@/types'
+import type {
+  AdminUsageLog,
+  UsageLogDetailResponse,
+  UsageQueryParams,
+  PaginatedResponse,
+  UsageRequestType
+} from '@/types'
 import type { EndpointStat } from '@/types'
 
 // ==================== Types ====================
@@ -97,6 +103,11 @@ export async function list(
     params,
     signal: options?.signal
   })
+  return data
+}
+
+export async function getDetail(id: number): Promise<UsageLogDetailResponse> {
+  const { data } = await apiClient.get<UsageLogDetailResponse>(`/admin/usage/${id}/detail`)
   return data
 }
 
@@ -195,6 +206,7 @@ export async function cancelCleanupTask(taskId: number): Promise<{ id: number; s
 
 export const adminUsageAPI = {
   list,
+  getDetail,
   getStats,
   searchUsers,
   searchApiKeys,

@@ -98,6 +98,7 @@ type SystemSettings struct {
 	// Gateway forwarding behavior
 	EnableFingerprintUnification bool `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough    bool `json:"enable_metadata_passthrough"`
+	UsageMessageRetentionEnabled bool `json:"usage_message_retention_enabled"`
 }
 
 type DefaultSubscriptionSetting struct {

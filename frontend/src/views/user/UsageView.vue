@@ -313,6 +313,12 @@
             <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
           </template>
 
+          <template #cell-details="{ row }">
+            <button type="button" class="btn btn-secondary btn-sm" @click="openDetail(row)">
+              {{ t('usage.detailButton') }}
+            </button>
+          </template>
+
           <template #empty>
             <EmptyState :message="t('usage.noRecords')" />
           </template>
@@ -478,6 +484,14 @@
       </div>
     </div>
   </Teleport>
+
+  <UsageLogDetailDialog
+    :show="detailDialogVisible"
+    :loading="detailLoading"
+    :detail="detailData"
+    :record="detailRecord"
+    @close="closeDetailDialog"
+  />
 </template>
 
 <script setup lang="ts">
@@ -493,7 +507,8 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
+import UsageLogDetailDialog from '@/components/usage/UsageLogDetailDialog.vue'
+import type { UsageLog, UsageLogDetailResponse, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -515,6 +530,10 @@ const tooltipData = ref<UsageLog | null>(null)
 const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<UsageLog | null>(null)
+const detailDialogVisible = ref(false)
+const detailLoading = ref(false)
+const detailRecord = ref<UsageLog | null>(null)
+const detailData = ref<UsageLogDetailResponse | null>(null)
 
 // Usage stats from API
 const usageStats = ref<UsageStatsResponse | null>(null)
@@ -530,7 +549,8 @@ const columns = computed<Column[]>(() => [
   { key: 'first_token', label: t('usage.firstToken'), sortable: false },
   { key: 'duration', label: t('usage.duration'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
-  { key: 'user_agent', label: t('usage.userAgent'), sortable: false }
+  { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
+  { key: 'details', label: t('usage.detailButton'), sortable: false }
 ])
 
 const usageLogs = ref<UsageLog[]>([])
@@ -621,6 +641,27 @@ const getRequestTypeExportText = (log: UsageLog): string => {
   if (requestType === 'stream') return 'Stream'
   if (requestType === 'sync') return 'Sync'
   return 'Unknown'
+}
+
+const openDetail = async (record: UsageLog) => {
+  detailDialogVisible.value = true
+  detailLoading.value = true
+  detailRecord.value = record
+  detailData.value = null
+  try {
+    detailData.value = await usageAPI.getDetail(record.id)
+  } catch (error: any) {
+    appStore.showError(error?.message || t('usage.failedToLoad'))
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+const closeDetailDialog = () => {
+  detailDialogVisible.value = false
+  detailLoading.value = false
+  detailRecord.value = null
+  detailData.value = null
 }
 
 const formatUsageEndpoints = (log: UsageLog): string => {

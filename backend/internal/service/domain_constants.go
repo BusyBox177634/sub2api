@@ -241,6 +241,8 @@ const (
 	SettingKeyEnableFingerprintUnification = "enable_fingerprint_unification"
 	// SettingKeyEnableMetadataPassthrough 是否透传客户端原始 metadata.user_id（默认 false）
 	SettingKeyEnableMetadataPassthrough = "enable_metadata_passthrough"
+	// SettingKeyUsageMessageRetentionEnabled 是否保存使用记录消息详情（默认 false）
+	SettingKeyUsageMessageRetentionEnabled = "usage_message_retention_enabled"
 )
 
 // AdminAPIKeyPrefix is the prefix for admin API keys (distinct from user "sk-" keys).

@@ -416,6 +416,27 @@ type AdminUsageLog struct {
 	Account *AccountSummary `json:"account,omitempty"`
 }
 
+type UsageLogMessage struct {
+	Role   string `json:"role"`
+	Source string `json:"source"`
+	Text   string `json:"text"`
+}
+
+type UsageLogDetailResponse struct {
+	Available bool `json:"available"`
+
+	Reason *string `json:"reason,omitempty"`
+
+	RequestMessages  []UsageLogMessage `json:"request_messages"`
+	ResponseMessages []UsageLogMessage `json:"response_messages"`
+
+	RequestPayloadJSON  *string `json:"request_payload_json,omitempty"`
+	ResponsePayloadJSON *string `json:"response_payload_json,omitempty"`
+
+	RequestTruncated  bool `json:"request_truncated"`
+	ResponseTruncated bool `json:"response_truncated"`
+}
+
 type UsageCleanupFilters struct {
 	StartTime   time.Time `json:"start_time"`
 	EndTime     time.Time `json:"end_time"`
