@@ -9,6 +9,9 @@
 ARG NODE_IMAGE=node:24-alpine
 ARG GOLANG_IMAGE=golang:1.26.1-alpine
 ARG ALPINE_IMAGE=alpine:3.20
+ARG ALPINE_REPO=https://mirrors.tuna.tsinghua.edu.cn/alpine
+ARG COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 
@@ -17,6 +20,10 @@ ARG GOSUMDB=sum.golang.google.cn
 # -----------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS frontend-builder
 
+ARG COREPACK_NPM_REGISTRY
+ARG NPM_REGISTRY
+ENV COREPACK_NPM_REGISTRY=${COREPACK_NPM_REGISTRY}
+
 WORKDIR /app/frontend
 
 # Install pnpm
@@ -24,7 +31,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm config set registry "${NPM_REGISTRY}" && pnpm install --frozen-lockfile
 
 # Copy frontend source and build
 COPY frontend/ ./
@@ -39,6 +46,7 @@ FROM ${GOLANG_IMAGE} AS backend-builder
 ARG VERSION=docker
 ARG COMMIT=docker
 ARG DATE
+ARG ALPINE_REPO
 ARG GOPROXY
 ARG GOSUMDB
 
@@ -46,7 +54,8 @@ ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${ALPINE_REPO}#g" /etc/apk/repositories && \
+    apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app/backend
 
@@ -72,13 +81,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
+ARG ALPINE_REPO
+
 # Labels
 LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${ALPINE_REPO}#g" /etc/apk/repositories && \
+    apk add --no-cache \
     ca-certificates \
     tzdata \
     curl \
