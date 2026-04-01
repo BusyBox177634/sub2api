@@ -611,3 +611,14 @@ gateway:
 **Cipher Suites (TLS 1.2):** `49195`, `49196`, `49199`, `49200` (ECDHE variants)
 
 **Curves:** `29` (X25519), `23` (P-256), `24` (P-384), `25` (P-521)
+
+
+```bash
+# sub2api/deploy 下执行这条就能重部署应用：
+
+docker compose -f docker-compose.dev.yml up -d --build sub2api
+
+# 如果你改了 compose、基础镜像依赖，或者要连同 PostgreSQL/Redis 一起重建，再执行
+docker compose -f docker-compose.dev.yml up -d --build
+
+```
