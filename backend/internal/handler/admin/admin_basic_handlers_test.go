@@ -113,6 +113,34 @@ func TestUserHandlerEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestUserHandlerAllowsAdminUsernameUpdate(t *testing.T) {
+	router, adminSvc := setupAdminRouter()
+
+	body, err := json.Marshal(map[string]any{"username": "renamed-user"})
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/users/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(1), adminSvc.lastUpdatedUserID)
+	require.NotNil(t, adminSvc.lastUpdateUserInput)
+	require.NotNil(t, adminSvc.lastUpdateUserInput.Username)
+	require.Equal(t, "renamed-user", *adminSvc.lastUpdateUserInput.Username)
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			Username string `json:"username"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	require.Equal(t, 0, resp.Code)
+	require.Equal(t, "renamed-user", resp.Data.Username)
+}
+
 func TestGroupHandlerEndpoints(t *testing.T) {
 	router, _ := setupAdminRouter()
 

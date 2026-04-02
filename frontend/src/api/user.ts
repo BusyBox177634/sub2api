@@ -1,6 +1,6 @@
 /**
  * User API endpoints
- * Handles user profile management and password changes
+ * Handles user profile viewing and password changes
  */
 
 import { apiClient } from './client'
@@ -12,18 +12,6 @@ import type { User, ChangePasswordRequest } from '@/types'
  */
 export async function getProfile(): Promise<User> {
   const { data } = await apiClient.get<User>('/user/profile')
-  return data
-}
-
-/**
- * Update current user profile
- * @param profile - Profile data to update
- * @returns Updated user profile data
- */
-export async function updateProfile(profile: {
-  username?: string
-}): Promise<User> {
-  const { data } = await apiClient.put<User>('/user', profile)
   return data
 }
 
@@ -47,7 +35,6 @@ export async function changePassword(
 
 export const userAPI = {
   getProfile,
-  updateProfile,
   changePassword
 }
 

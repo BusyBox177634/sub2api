@@ -17,16 +17,33 @@ import (
 // --- mock: UserRepository ---
 
 type mockUserRepo struct {
+	user             *User
+	updatedUser      *User
+	getByIDCalls     int
+	updateCalls      int
 	updateBalanceErr error
 	updateBalanceFn  func(ctx context.Context, id int64, amount float64) error
 }
 
-func (m *mockUserRepo) Create(context.Context, *User) error               { return nil }
-func (m *mockUserRepo) GetByID(context.Context, int64) (*User, error)     { return &User{}, nil }
+func (m *mockUserRepo) Create(context.Context, *User) error { return nil }
+func (m *mockUserRepo) GetByID(context.Context, int64) (*User, error) {
+	m.getByIDCalls++
+	if m.user != nil {
+		return m.user, nil
+	}
+	return &User{}, nil
+}
 func (m *mockUserRepo) GetByEmail(context.Context, string) (*User, error) { return &User{}, nil }
 func (m *mockUserRepo) GetFirstAdmin(context.Context) (*User, error)      { return &User{}, nil }
-func (m *mockUserRepo) Update(context.Context, *User) error               { return nil }
-func (m *mockUserRepo) Delete(context.Context, int64) error               { return nil }
+func (m *mockUserRepo) Update(_ context.Context, user *User) error {
+	m.updateCalls++
+	if user != nil {
+		cloned := *user
+		m.updatedUser = &cloned
+	}
+	return nil
+}
+func (m *mockUserRepo) Delete(context.Context, int64) error { return nil }
 func (m *mockUserRepo) List(context.Context, pagination.PaginationParams) ([]User, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
@@ -199,4 +216,23 @@ func TestNewUserService_FieldsAssignment(t *testing.T) {
 	require.Equal(t, repo, svc.userRepo)
 	require.Equal(t, auth, svc.authCacheInvalidator)
 	require.Equal(t, cache, svc.billingCache)
+}
+
+func TestUpdateProfile_RejectsUsernameChanges(t *testing.T) {
+	repo := &mockUserRepo{
+		user: &User{ID: 7, Username: "current-name"},
+	}
+	svc := NewUserService(repo, nil, nil)
+
+	nextUsername := "new-name"
+	updatedUser, err := svc.UpdateProfile(context.Background(), 7, UpdateProfileRequest{
+		Username: &nextUsername,
+	})
+
+	require.Nil(t, updatedUser)
+	require.ErrorIs(t, err, ErrUsernameReadOnly)
+	require.Zero(t, repo.getByIDCalls)
+	require.Zero(t, repo.updateCalls)
+	require.Nil(t, repo.updatedUser)
+	require.Equal(t, "current-name", repo.user.Username)
 }

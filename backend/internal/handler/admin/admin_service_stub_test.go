@@ -26,6 +26,8 @@ type stubAdminService struct {
 	updateAccountErr     error
 	bulkUpdateAccountErr error
 	checkMixedErr        error
+	lastUpdatedUserID    int64
+	lastUpdateUserInput  *service.UpdateUserInput
 	lastMixedCheck       struct {
 		accountID int64
 		platform  string
@@ -119,7 +121,18 @@ func (s *stubAdminService) CreateUser(ctx context.Context, input *service.Create
 }
 
 func (s *stubAdminService) UpdateUser(ctx context.Context, id int64, input *service.UpdateUserInput) (*service.User, error) {
+	s.lastUpdatedUserID = id
+	s.lastUpdateUserInput = input
+
 	user := service.User{ID: id, Email: "updated@example.com", Status: service.StatusActive}
+	if input != nil {
+		if input.Email != "" {
+			user.Email = input.Email
+		}
+		if input.Username != nil {
+			user.Username = *input.Username
+		}
+	}
 	return &user, nil
 }
 

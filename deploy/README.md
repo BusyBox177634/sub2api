@@ -622,3 +622,92 @@ docker compose -f docker-compose.dev.yml up -d --build sub2api
 docker compose -f docker-compose.dev.yml up -d --build
 
 ```
+
+
+### 反向代理
+```bash
+sudo apt install nginx
+
+sudo vim /etc/nginx/nginx.conf
+
+# 在 http { ... } 里面加这一行： underscores_in_headers on;
+# http {
+#     underscores_in_headers on;
+
+#     include       /etc/nginx/mime.types;
+#     default_type  application/octet-stream;
+
+#     sendfile on;
+#     keepalive_timeout 65;
+
+#     include /etc/nginx/conf.d/*.conf;
+#     include /etc/nginx/sites-enabled/*;
+# }
+# 这一步对 Sub2API 很关键。官方 README 明确写了这个要求
+
+
+```
+
+# 新建站点配置
+```bash
+sudo vim /etc/nginx/sites-available/sub2api
+```
+
+填入：
+```nginx
+upstream sub2api_backend {
+    server 127.0.0.1:8080;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ai-coding.work;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ai-coding.work;
+
+    ssl_certificate /root/sub2api/ai-coding.work_nginx/ai-coding.work.pem;
+    ssl_certificate_key /root/sub2api/ai-coding.work_nginx/ai-coding.work.key;
+
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 50m;
+
+    location / {
+        proxy_pass http://sub2api_backend;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header Connection "";
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+```
+
+# 启用配置并检查
+
+```bash
+sudo ln -s /etc/nginx/sites-available/sub2api /etc/nginx/sites-enabled/sub2api
+sudo nginx -t
+sudo systemctl reload nginx
+```

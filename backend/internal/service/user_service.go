@@ -14,6 +14,7 @@ var (
 	ErrUserNotFound      = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
 	ErrPasswordIncorrect = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
 	ErrInsufficientPerms = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
+	ErrUsernameReadOnly  = infraerrors.Forbidden("USERNAME_CHANGE_RESTRICTED", "username can only be changed by an administrator")
 )
 
 // UserListFilters contains all filter options for listing users
@@ -105,6 +106,11 @@ func (s *UserService) GetProfile(ctx context.Context, userID int64) (*User, erro
 
 // UpdateProfile 更新用户资料
 func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req UpdateProfileRequest) (*User, error) {
+	// User-facing profile updates no longer allow username changes.
+	if req.Username != nil {
+		return nil, ErrUsernameReadOnly
+	}
+
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
