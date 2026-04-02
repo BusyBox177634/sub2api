@@ -1,22 +1,22 @@
 # =============================================================================
 # Sub2API Docker Compose - Local Directory Version
 # =============================================================================
-# This configuration uses local directories for data storage instead of named
-# volumes, making it easy to migrate the entire deployment by simply copying
-# the deploy directory.
+# This configuration builds Sub2API from local source code and uses local
+# directories for data storage instead of named volumes.
 #
 # Quick Start:
 #   1. Copy .env.example to .env and configure
 #   2. mkdir -p data postgres_data redis_data
-#   3. docker-compose -f docker-compose.local.yml up -d
-#   4. Check logs: docker-compose -f docker-compose.local.yml logs -f sub2api
+#   3. docker compose -f docker-compose.local.yml up -d --build
+#   4. Check logs: docker compose -f docker-compose.local.yml logs -f sub2api
 #   5. Access: http://localhost:8080
 #
 # Migration to New Server:
-#   1. docker-compose -f docker-compose.local.yml down
-#   2. tar czf sub2api-deploy.tar.gz deploy/
-#   3. Transfer to new server and extract
-#   4. docker-compose -f docker-compose.local.yml up -d
+#   1. docker compose -f docker-compose.local.yml down
+#   2. Transfer the full repository (or another directory containing both
+#      deploy/ and its parent build context) to the new server
+#   3. Recreate data directories if needed: mkdir -p data postgres_data redis_data
+#   4. docker compose -f docker-compose.local.yml up -d --build
 # =============================================================================
 
 services:
@@ -24,7 +24,9 @@ services:
   # Sub2API Application
   # ===========================================================================
   sub2api:
-    image: weishaw/sub2api:latest
+    build:
+      context: ..
+      dockerfile: Dockerfile
     container_name: sub2api
     restart: unless-stopped
     ulimits:
