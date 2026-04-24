@@ -1097,15 +1097,6 @@ func walkOpenAIImageInlineAssets(node any, prompt string, out *[]openAIImagePoin
 	}
 }
 
-func firstNonEmptyString(values ...any) string {
-	for _, value := range values {
-		if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
-			return strings.TrimSpace(s)
-		}
-	}
-	return ""
-}
-
 func isLikelyOpenAIImageDownloadURL(raw string) bool {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

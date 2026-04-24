@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultChatConversationTitle = "新对话"
+	defaultChatConversationTitle  = "新对话"
 	maxChatConversationTitleRunes = 48
 	maxChatListAPIKeys            = 200
 )
@@ -602,13 +602,4 @@ func extractCompletedResponseText(payload string) string {
 		}
 	}
 	return strings.Join(parts, "\n\n")
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }

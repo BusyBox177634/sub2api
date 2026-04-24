@@ -231,10 +231,12 @@ type OpenAIForwardResult struct {
 	Stream          bool
 	OpenAIWSMode    bool
 	ResponseHeaders http.Header
-	Duration        time.Duration
-	FirstTokenMs    *int
-	ImageCount      int
-	ImageSize       string
+	// UsageDetailResponsePayload stores the normalized response payload snapshot used for usage detail capture.
+	UsageDetailResponsePayload []byte
+	Duration                   time.Duration
+	FirstTokenMs               *int
+	ImageCount                 int
+	ImageSize                  string
 }
 
 type OpenAIWSRetryMetricsSnapshot struct {
