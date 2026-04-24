@@ -34,6 +34,7 @@
             :show-metric-toggle="true"
             :start-date="startDate"
             :end-date="endDate"
+            :filters="breakdownFilters"
           />
           <GroupDistributionChart
             v-model:metric="groupDistributionMetric"
@@ -42,6 +43,7 @@
             :show-metric-toggle="true"
             :start-date="startDate"
             :end-date="endDate"
+            :filters="breakdownFilters"
           />
         </div>
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -57,6 +59,7 @@
             :title="t('usage.endpointDistribution')"
             :start-date="startDate"
             :end-date="endDate"
+            :filters="breakdownFilters"
           />
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
@@ -97,7 +100,16 @@
           </div>
         </template>
       </UsageFilters>
-      <UsageTable :data="usageLogs" :loading="loading" :columns="visibleColumns" @userClick="handleUserClick" @detailClick="openDetail" />
+      <UsageTable
+        :data="usageLogs"
+        :loading="loading"
+        :columns="visibleColumns"
+        :server-side-sort="true"
+        :default-sort-key="'created_at'"
+        :default-sort-order="'desc'"
+        @sort="handleSort"
+        @userClick="handleUserClick"
+      />
       <Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
     </div>
   </AppLayout>
@@ -116,14 +128,6 @@
     :hide-actions="true"
     @close="showBalanceHistoryModal = false; balanceHistoryUser = null"
   />
-  <UsageLogDetailDialog
-    :show="detailDialogVisible"
-    :loading="detailLoading"
-    :detail="detailData"
-    :record="detailRecord"
-    :admin="true"
-    @close="closeDetailDialog"
-  />
 </template>
 
 <script setup lang="ts">
@@ -140,11 +144,10 @@ import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; impo
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
-import UsageLogDetailDialog from '@/components/usage/UsageLogDetailDialog.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { AdminUsageLog, UsageLogDetailResponse, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
+import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -177,10 +180,17 @@ const cleanupDialogVisible = ref(false)
 // Balance history modal state
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
-const detailDialogVisible = ref(false)
-const detailLoading = ref(false)
-const detailRecord = ref<AdminUsageLog | null>(null)
-const detailData = ref<UsageLogDetailResponse | null>(null)
+
+const breakdownFilters = computed(() => {
+  const f: Record<string, any> = {}
+  if (filters.value.user_id) f.user_id = filters.value.user_id
+  if (filters.value.api_key_id) f.api_key_id = filters.value.api_key_id
+  if (filters.value.account_id) f.account_id = filters.value.account_id
+  if (filters.value.group_id) f.group_id = filters.value.group_id
+  if (filters.value.request_type != null) f.request_type = filters.value.request_type
+  if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
+  return f
+})
 
 const handleUserClick = async (userId: number) => {
   try {
@@ -190,27 +200,6 @@ const handleUserClick = async (userId: number) => {
   } catch {
     appStore.showError(t('admin.usage.failedToLoadUser'))
   }
-}
-
-const openDetail = async (record: AdminUsageLog) => {
-  detailDialogVisible.value = true
-  detailLoading.value = true
-  detailRecord.value = record
-  detailData.value = null
-  try {
-    detailData.value = await adminUsageAPI.getDetail(record.id)
-  } catch (error: any) {
-    appStore.showError(error?.message || t('admin.usage.failedToLoad'))
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const closeDetailDialog = () => {
-  detailDialogVisible.value = false
-  detailLoading.value = false
-  detailRecord.value = null
-  detailData.value = null
 }
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
@@ -239,6 +228,10 @@ const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
 const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, billing_type: null, start_date: startDate.value, end_date: endDate.value })
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
+const sortState = reactive({
+  sort_by: 'created_at',
+  sort_order: 'desc' as 'asc' | 'desc'
+})
 
 const getSingleQueryValue = (value: string | null | Array<string | null> | undefined): string | undefined => {
   if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string' && item.length > 0)
@@ -285,12 +278,31 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
   applyFilters()
 }
 
+const buildUsageListParams = (
+  page: number,
+  pageSize: number,
+  exactTotal: boolean
+): AdminUsageQueryParams => {
+  const requestType = filters.value.request_type
+  const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
+  return {
+    page,
+    page_size: pageSize,
+    exact_total: exactTotal,
+    ...filters.value,
+    stream: legacyStream === null ? undefined : legacyStream,
+    sort_by: sortState.sort_by,
+    sort_order: sortState.sort_order
+  }
+}
+
 const loadLogs = async () => {
   abortController?.abort(); const c = new AbortController(); abortController = c; loading.value = true
   try {
-    const requestType = filters.value.request_type
-    const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
-    const res = await adminAPI.usage.list({ page: pagination.page, page_size: pagination.page_size, exact_total: false, ...filters.value, stream: legacyStream === null ? undefined : legacyStream }, { signal: c.signal })
+    const res = await adminAPI.usage.list(
+      buildUsageListParams(pagination.page, pagination.page_size, false),
+      { signal: c.signal }
+    )
     if(!c.signal.aborted) { usageLogs.value = res.items; pagination.total = res.total }
   } catch (error: any) { if(error?.name !== 'AbortError') console.error('Failed to load usage logs:', error) } finally { if(abortController === c) loading.value = false }
 }
@@ -426,12 +438,18 @@ const resetFilters = () => {
   const range = getLast24HoursRangeDates()
   startDate.value = range.start
   endDate.value = range.end
-  filters.value = { start_date: startDate.value, end_date: endDate.value, request_type: undefined, billing_type: null }
+  filters.value = { start_date: startDate.value, end_date: endDate.value, request_type: undefined, billing_type: null, billing_mode: undefined }
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
   applyFilters()
 }
 const handlePageChange = (p: number) => { pagination.page = p; loadLogs() }
 const handlePageSizeChange = (s: number) => { pagination.page_size = s; pagination.page = 1; loadLogs() }
+const handleSort = (key: string, order: 'asc' | 'desc') => {
+  sortState.sort_by = key
+  sortState.sort_order = order
+  pagination.page = 1
+  loadLogs()
+}
 const cancelExport = () => exportAbortController?.abort()
 const openCleanupDialog = () => { cleanupDialogVisible.value = true }
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
@@ -463,9 +481,10 @@ const exportToExcel = async () => {
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
-      const requestType = filters.value.request_type
-      const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
-      const res = await adminUsageAPI.list({ page: p, page_size: 100, exact_total: true, ...filters.value, stream: legacyStream === null ? undefined : legacyStream }, { signal: c.signal })
+      const res = await adminUsageAPI.list(
+        buildUsageListParams(p, 100, true),
+        { signal: c.signal }
+      )
       if (c.signal.aborted) break; if (p === 1) { total = res.total; exportProgress.total = total }
       const rows = (res.items || []).map((log: AdminUsageLog) => [
         log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
@@ -474,9 +493,9 @@ const exportToExcel = async () => {
         log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
         log.input_cost?.toFixed(6) || '0.000000', log.output_cost?.toFixed(6) || '0.000000',
         log.cache_read_cost?.toFixed(6) || '0.000000', log.cache_creation_cost?.toFixed(6) || '0.000000',
-        log.rate_multiplier?.toFixed(2) || '1.00', (log.account_rate_multiplier ?? 1).toFixed(2),
+        log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
         log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
-        (log.total_cost * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
+        ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
         log.request_id || '', log.user_agent || '', log.ip_address || ''
       ])
       if (rows.length) {
@@ -498,7 +517,7 @@ const exportToExcel = async () => {
 }
 
 // Column visibility
-const ALWAYS_VISIBLE = ['user', 'created_at', 'details']
+const ALWAYS_VISIBLE = ['user', 'created_at']
 const DEFAULT_HIDDEN_COLUMNS = ['reasoning_effort', 'user_agent']
 const HIDDEN_COLUMNS_KEY = 'usage-hidden-columns'
 
@@ -511,14 +530,14 @@ const allColumns = computed(() => [
   { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
   { key: 'group', label: t('admin.usage.group'), sortable: false },
   { key: 'stream', label: t('usage.type'), sortable: false },
+  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'first_token', label: t('usage.firstToken'), sortable: false },
   { key: 'duration', label: t('usage.duration'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
-  { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false },
-  { key: 'details', label: t('usage.detailButton'), sortable: false }
+  { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false }
 ])
 
 const hiddenColumns = reactive<Set<string>>(new Set())
