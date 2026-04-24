@@ -362,14 +362,16 @@ func (s *ChatService) loadAPIKeyForConversation(ctx context.Context, userID, api
 }
 
 func (s *ChatService) isAPIKeyAllowedForChat(apiKey *APIKey) bool {
-	if apiKey == nil || apiKey.User == nil || apiKey.Group == nil {
+	if apiKey == nil || apiKey.Group == nil {
 		return false
 	}
-	if apiKey.User.Status != StatusActive {
-		return false
-	}
-	if !apiKey.User.IsActive() {
-		return false
+	if apiKey.User != nil {
+		if apiKey.User.Status != StatusActive {
+			return false
+		}
+		if !apiKey.User.IsActive() {
+			return false
+		}
 	}
 	if apiKey.Status != StatusAPIKeyActive {
 		return false

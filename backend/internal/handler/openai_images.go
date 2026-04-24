@@ -73,6 +73,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	detailCaptureState := beginUsageDetailCapture(c, body, usageDetailResponseFormatFromStream(parsed.Stream))
+	defer detailCaptureState.Close(c)
 
 	reqLog = reqLog.With(
 		zap.String("model", parsed.Model),
@@ -264,6 +266,15 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		if parsed.Multipart {
 			requestPayloadHash = service.HashUsageRequestPayload([]byte(parsed.StickySessionSeed()))
 		}
+		if result != nil && len(result.UsageDetailResponsePayload) > 0 {
+			detailCaptureState.OverrideResponsePayload(
+				result.UsageDetailResponsePayload,
+				len(result.UsageDetailResponsePayload),
+				false,
+				service.UsageLogDetailResponseFormatJSON,
+			)
+		}
+		usageDetailCapture := detailCaptureState.Build()
 
 		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -277,6 +288,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				UsageDetailCapture: usageDetailCapture,
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(parsed.Model, result.UpstreamModel),
 			}); err != nil {

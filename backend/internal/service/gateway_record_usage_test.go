@@ -115,6 +115,48 @@ func TestGatewayServiceRecordUsage_BillingUsesDetachedContext(t *testing.T) {
 	require.NoError(t, quotaSvc.lastQuotaCtxErr)
 }
 
+func TestGatewayServiceRecordUsage_PersistsUsageDetailCaptureWhenProvided(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	detailRepo := &usageLogDetailRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.SetUsageLogDetailRepo(detailRepo)
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "gateway_detail_capture",
+			Usage: ClaudeUsage{
+				InputTokens:  10,
+				OutputTokens: 6,
+			},
+			Model:    "claude-sonnet-4",
+			Duration: time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    501,
+			Quota: 100,
+		},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701},
+		UsageDetailCapture: &UsageLogDetailCapture{
+			RequestBody:       []byte(`{"messages":[{"role":"user","content":"hello"}]}`),
+			ResponseBody:      []byte(`{"content":"world"}`),
+			ResponseBodyBytes: len(`{"content":"world"}`),
+			ResponseFormat:    UsageLogDetailResponseFormatJSON,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, detailRepo.upsertCalls)
+	require.Equal(t, "gateway_detail_capture", detailRepo.lastRequestID)
+	require.Equal(t, int64(501), detailRepo.lastAPIKeyID)
+	require.NotNil(t, detailRepo.lastDetail)
+	require.NotNil(t, detailRepo.lastDetail.RequestPayloadJSON)
+	require.Contains(t, *detailRepo.lastDetail.RequestPayloadJSON, "hello")
+	require.NotNil(t, detailRepo.lastDetail.ResponsePayloadJSON)
+	require.Contains(t, *detailRepo.lastDetail.ResponsePayloadJSON, "world")
+}
+
 func TestGatewayServiceRecordUsage_BillingFingerprintIncludesRequestPayloadHash(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}

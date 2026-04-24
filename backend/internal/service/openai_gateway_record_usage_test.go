@@ -229,6 +229,50 @@ func TestOpenAIGatewayServiceRecordUsage_UsesUserSpecificGroupRate(t *testing.T)
 	require.Equal(t, 1, userRepo.deductCalls)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_PersistsUsageDetailCaptureWhenProvided(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	detailRepo := &usageLogDetailRepoStub{}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+	svc.SetUsageLogDetailRepo(detailRepo)
+
+	payload := []byte(`{"messages":[{"role":"assistant","content":"world"}]}`)
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_detail_capture",
+			Usage: OpenAIUsage{
+				InputTokens:  12,
+				OutputTokens: 8,
+			},
+			Model:                      "gpt-5.4",
+			Duration:                   time.Second,
+			UsageDetailResponsePayload: payload,
+		},
+		APIKey: &APIKey{
+			ID:    1001,
+			Quota: 100,
+		},
+		User:    &User{ID: 2001},
+		Account: &Account{ID: 3001},
+		UsageDetailCapture: &UsageLogDetailCapture{
+			RequestBody:       []byte(`{"input":[{"role":"user","content":"hello"}]}`),
+			ResponseBody:      payload,
+			ResponseBodyBytes: len(payload),
+			ResponseFormat:    UsageLogDetailResponseFormatJSON,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, detailRepo.upsertCalls)
+	require.Equal(t, "resp_detail_capture", detailRepo.lastRequestID)
+	require.Equal(t, int64(1001), detailRepo.lastAPIKeyID)
+	require.NotNil(t, detailRepo.lastDetail)
+	require.NotNil(t, detailRepo.lastDetail.RequestPayloadJSON)
+	require.Contains(t, *detailRepo.lastDetail.RequestPayloadJSON, "hello")
+	require.NotNil(t, detailRepo.lastDetail.ResponsePayloadJSON)
+	require.Contains(t, *detailRepo.lastDetail.ResponsePayloadJSON, "world")
+}
+
 func TestOpenAIGatewayServiceRecordUsage_IncludesEndpointMetadata(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}

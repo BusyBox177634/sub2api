@@ -35,7 +35,7 @@ type UsageLogMessage struct {
 type UsageLogDetail struct {
 	UsageLogID int64
 
-	RequestPayloadJSON *string
+	RequestPayloadJSON  *string
 	ResponsePayloadJSON *string
 
 	RequestPayloadBytes  *int
@@ -73,10 +73,10 @@ const (
 type UsageLogDetailCapture struct {
 	RequestBody []byte
 
-	ResponseBody            []byte
-	ResponseBodyBytes       int
+	ResponseBody             []byte
+	ResponseBodyBytes        int
 	ResponseCaptureTruncated bool
-	ResponseFormat          UsageLogDetailResponseFormat
+	ResponseFormat           UsageLogDetailResponseFormat
 }
 
 type UsageLogDetailRepository interface {
@@ -95,12 +95,12 @@ func BuildUsageLogDetailFromCapture(capture *UsageLogDetailCapture) *UsageLogDet
 	responsePayloadJSON, responseTruncated, responsePayloadBytes := prepareUsageLogDetailResponsePayload(capture)
 
 	return &UsageLogDetail{
-		RequestPayloadJSON:  requestPayloadJSON,
-		ResponsePayloadJSON: responsePayloadJSON,
-		RequestPayloadBytes: requestPayloadBytes,
+		RequestPayloadJSON:   requestPayloadJSON,
+		ResponsePayloadJSON:  responsePayloadJSON,
+		RequestPayloadBytes:  requestPayloadBytes,
 		ResponsePayloadBytes: responsePayloadBytes,
-		RequestTruncated:    requestTruncated,
-		ResponseTruncated:   responseTruncated,
+		RequestTruncated:     requestTruncated,
+		ResponseTruncated:    responseTruncated,
 	}
 }
 
@@ -369,6 +369,21 @@ func writeUsageLogAndDetailBestEffort(
 	if err := upsertUsageLogDetailWithRetry(usageCtx, detailRepo, usageLog, detail); err != nil {
 		logger.LegacyPrintf(logKey, "Create usage log detail failed: %v", err)
 	}
+}
+
+func writeUsageLogWithOptionalDetail(
+	ctx context.Context,
+	usageRepo UsageLogRepository,
+	detailRepo UsageLogDetailRepository,
+	usageLog *UsageLog,
+	detail *UsageLogDetail,
+	logKey string,
+) {
+	if detail != nil && detailRepo != nil {
+		writeUsageLogAndDetailBestEffort(ctx, usageRepo, detailRepo, usageLog, detail, logKey)
+		return
+	}
+	writeUsageLogBestEffort(ctx, usageRepo, usageLog, logKey)
 }
 
 func upsertUsageLogDetailWithRetry(

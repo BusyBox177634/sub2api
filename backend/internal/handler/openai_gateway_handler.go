@@ -172,6 +172,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	}
 	reqStream := streamResult.Bool()
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	detailCaptureState := beginUsageDetailCapture(c, body, usageDetailResponseFormatFromStream(reqStream))
+	defer detailCaptureState.Close(c)
 	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
 	if previousResponseID != "" {
 		previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
@@ -387,6 +389,15 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
+		if result != nil && len(result.UsageDetailResponsePayload) > 0 {
+			detailCaptureState.OverrideResponsePayload(
+				result.UsageDetailResponsePayload,
+				len(result.UsageDetailResponsePayload),
+				false,
+				service.UsageLogDetailResponseFormatJSON,
+			)
+		}
+		usageDetailCapture := detailCaptureState.Build()
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		h.submitUsageRecordTask(func(ctx context.Context) {
@@ -401,6 +412,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				UsageDetailCapture: usageDetailCapture,
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {
@@ -570,6 +582,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	detailCaptureState := beginUsageDetailCapture(c, body, usageDetailResponseFormatFromStream(reqStream))
+	defer detailCaptureState.Close(c)
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
@@ -760,6 +774,15 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
+		if result != nil && len(result.UsageDetailResponsePayload) > 0 {
+			detailCaptureState.OverrideResponsePayload(
+				result.UsageDetailResponsePayload,
+				len(result.UsageDetailResponsePayload),
+				false,
+				service.UsageLogDetailResponseFormatJSON,
+			)
+		}
+		usageDetailCapture := detailCaptureState.Build()
 
 		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -773,6 +796,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
+				UsageDetailCapture: usageDetailCapture,
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {
@@ -1265,6 +1289,13 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, result.ResponseHeaders)
 			}
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
+			usageDetailCapture := buildUsageDetailCapture(
+				firstMessage,
+				result.UsageDetailResponsePayload,
+				len(result.UsageDetailResponsePayload),
+				false,
+				service.UsageLogDetailResponseFormatJSON,
+			)
 			h.submitUsageRecordTask(func(taskCtx context.Context) {
 				if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 					Result:             result,
@@ -1277,6 +1308,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					UserAgent:          userAgent,
 					IPAddress:          clientIP,
 					RequestPayloadHash: service.HashUsageRequestPayload(firstMessage),
+					UsageDetailCapture: usageDetailCapture,
 					APIKeyService:      h.apiKeyService,
 					ChannelUsageFields: channelMappingWS.ToUsageFields(reqModel, result.UpstreamModel),
 				}); err != nil {
