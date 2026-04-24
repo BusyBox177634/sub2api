@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getDetail, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
+const { list, getDetail, getStats, getSnapshotV2, getById, showError } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -16,6 +16,7 @@ const { list, getDetail, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
     getStats: vi.fn(),
     getSnapshotV2: vi.fn(),
     getById: vi.fn(),
+    showError: vi.fn(),
   }
 })
 
@@ -57,7 +58,7 @@ vi.mock('@/api/admin/usage', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn(),
+    showError,
     showWarning: vi.fn(),
     showSuccess: vi.fn(),
     showInfo: vi.fn(),
@@ -115,6 +116,7 @@ describe('admin UsageView distribution metric toggles', () => {
     getStats.mockReset()
     getSnapshotV2.mockReset()
     getById.mockReset()
+    showError.mockReset()
 
     list.mockResolvedValue({
       items: [],
@@ -239,5 +241,75 @@ describe('admin UsageView distribution metric toggles', () => {
     expect(getDetail).toHaveBeenCalledWith(321)
     expect(setupState.detailDialogVisible).toBe(true)
     expect(setupState.detailData.available).toBe(true)
+  })
+
+  it('includes details in visible and toggleable columns by default', async () => {
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: true,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          UsageLogDetailDialog: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: ModelDistributionChartStub,
+          GroupDistributionChart: GroupDistributionChartStub,
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    expect(setupState.visibleColumns.some((col: { key: string }) => col.key === 'details')).toBe(true)
+    expect(setupState.toggleableColumns.some((col: { key: string }) => col.key === 'details')).toBe(true)
+  })
+
+  it('clears detail state and shows an error when detail load fails', async () => {
+    getDetail.mockRejectedValue(new Error('boom'))
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: true,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          UsageLogDetailDialog: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: ModelDistributionChartStub,
+          GroupDistributionChart: GroupDistributionChartStub,
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    await setupState.openDetail({ id: 999, request_id: 'req-admin-fail', model: 'gpt-5.4', created_at: '2026-03-08T00:00:00Z' })
+    await flushPromises()
+
+    expect(getDetail).toHaveBeenCalledWith(999)
+    expect(showError).toHaveBeenCalled()
+    expect(setupState.detailDialogVisible).toBe(true)
+    expect(setupState.detailLoading).toBe(false)
+    expect(setupState.detailData).toBeNull()
   })
 })
