@@ -342,6 +342,7 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    chat: '聊天',
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
@@ -1038,11 +1039,12 @@ export default {
     administrator: '管理员',
     user: '用户',
     username: '用户名',
+    usernameManagedByAdmin: '用户名仅管理员可修改。',
     email: '邮箱',
     status: '状态',
     role: '角色',
     enterUsername: '输入用户名',
-    editProfile: '编辑个人资料',
+    editProfile: '个人信息',
     updateProfile: '更新资料',
     updating: '更新中...',
     updateSuccess: '资料更新成功',
@@ -6068,6 +6070,43 @@ export default {
           '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;">点击确认创建您的 API 密钥。</p><div style="padding: 8px 12px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>⚠️ 重要：</b><ul style="margin: 8px 0 0 16px;"><li>创建后请立即复制密钥（sk-xxx）</li><li>密钥只显示一次，丢失需重新生成</li></ul></div><p style="padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>🚀 如何使用：</b><br/>将密钥配置到支持 OpenAI 接口的任何客户端（如 ChatBox、OpenCat 等），即可开始使用！</p><p style="margin-top: 12px; color: #10b981; font-weight: 600;">👉 点击"创建"按钮</p></div>'
       }
     }
+  },
+
+  chat: {
+    title: '聊天',
+    description: '内置网页聊天，按用户保存历史记录',
+    sidebarEyebrow: '工作区',
+    headerEyebrow: '当前会话',
+    apiKeyLabel: 'API Key',
+    modelLabel: '模型',
+    emptyConversationsTitle: '还没有会话',
+    emptyConversationsDesc: '创建第一个会话后，就可以直接在浏览器中开始聊天。',
+    untitledConversation: '未命名会话',
+    emptyTitle: '开始新的对话',
+    emptyDesc: '选择 API Key 和模型后即可开始。当前版本支持图片上传、粘贴和拖拽，历史记录按用户隔离保存。',
+    youLabel: '你',
+    assistantLabel: '助手',
+    failed: '失败',
+    stopped: '已停止',
+    streaming: '生成中',
+    stopGenerating: '停止',
+    waitingResponse: '等待模型返回中...',
+    inputPlaceholder: '输入问题，或直接粘贴 / 拖拽图片...',
+    inputPlaceholderNoImage: '输入你的问题...',
+    imageHint: '支持粘贴、拖拽和图片上传。',
+    noImageHint: '当前模型不支持图片输入。',
+    selectApiKeyFirst: '请先选择 API Key 和模型。',
+    createConversationFailed: '创建会话失败。',
+    updateConversationFailed: '更新会话失败。',
+    renamePrompt: '重命名会话',
+    renameConversationFailed: '重命名会话失败。',
+    deleteConversationConfirm: '确认删除这个会话吗？该会话下的本地附件也会一起删除。',
+    deleteConversationFailed: '删除会话失败。',
+    onlyImageSupported: '当前仅支持上传图片。',
+    uploadFailed: '上传附件失败。',
+    removeAttachmentFailed: '删除附件失败。',
+    streamFailed: '流式请求失败。',
+    loadFailed: '加载聊天数据失败。'
   },
 
   // Payment System

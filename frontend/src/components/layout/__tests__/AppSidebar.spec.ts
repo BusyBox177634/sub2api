@@ -30,3 +30,10 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar self navigation', () => {
+  it('restores the chat entry in the shared self-service nav builder', () => {
+    expect(componentSource).toContain('const ChatIcon = {')
+    expect(componentSource).toContain("{ path: '/chat', label: t('nav.chat'), icon: ChatIcon }")
+  })
+})

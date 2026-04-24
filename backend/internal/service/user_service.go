@@ -32,6 +32,7 @@ var (
 	ErrUserNotFound             = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
 	ErrPasswordIncorrect        = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
 	ErrInsufficientPerms        = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
+	ErrUsernameReadOnly         = infraerrors.Forbidden("USERNAME_CHANGE_RESTRICTED", "username can only be changed by an administrator")
 	ErrNotifyCodeUserRateLimit  = infraerrors.TooManyRequests("NOTIFY_CODE_USER_RATE_LIMIT", "too many verification codes requested, please try again later")
 	ErrAvatarInvalid            = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
 	ErrAvatarTooLarge           = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
@@ -374,6 +375,10 @@ func (s *UserService) UnbindUserAuthProviderWithResult(ctx context.Context, user
 
 // UpdateProfile 更新用户资料
 func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req UpdateProfileRequest) (*User, error) {
+	if req.Username != nil {
+		return nil, ErrUsernameReadOnly
+	}
+
 	if txRunner, ok := s.userRepo.(userProfileIdentityTxRunner); ok {
 		var (
 			updated        *User

@@ -27,6 +27,7 @@ type mockUserRepo struct {
 	updateBalanceFn         func(ctx context.Context, id int64, amount float64) error
 	getByIDUser             *User
 	getByIDErr              error
+	getByIDCalls            int
 	identities              []UserAuthIdentityRecord
 	unbindIdentityErr       error
 	unboundProviders        []string
@@ -91,6 +92,7 @@ func (m *mockUserSettingRepo) Delete(context.Context, string) error {
 
 func (m *mockUserRepo) Create(context.Context, *User) error { return nil }
 func (m *mockUserRepo) GetByID(ctx context.Context, _ int64) (*User, error) {
+	m.getByIDCalls++
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
 	}
@@ -651,6 +653,28 @@ func TestNewUserService_FieldsAssignment(t *testing.T) {
 	require.Equal(t, repo, svc.userRepo)
 	require.Equal(t, auth, svc.authCacheInvalidator)
 	require.Equal(t, cache, svc.billingCache)
+}
+
+func TestUpdateProfile_RejectsUsernameChanges(t *testing.T) {
+	nextUsername := "new-name"
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:       7,
+			Email:    "readonly@example.com",
+			Username: "current-name",
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 7, UpdateProfileRequest{
+		Username: &nextUsername,
+	})
+
+	require.Nil(t, updated)
+	require.ErrorIs(t, err, ErrUsernameReadOnly)
+	require.Zero(t, repo.getByIDCalls)
+	require.Zero(t, repo.updateCalls)
+	require.Zero(t, repo.txCalls)
 }
 
 func TestUpdateProfile_StoresInlineAvatarWithinLimit(t *testing.T) {
