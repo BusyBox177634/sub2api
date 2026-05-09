@@ -92,6 +92,12 @@ func (s *userHandlerRepoStub) ListWithFilters(context.Context, pagination.Pagina
 func (s *userHandlerRepoStub) UpdateBalance(context.Context, int64, float64) error { return nil }
 func (s *userHandlerRepoStub) DeductBalance(context.Context, int64, float64) error { return nil }
 func (s *userHandlerRepoStub) UpdateConcurrency(context.Context, int64, int) error { return nil }
+func (s *userHandlerRepoStub) BatchSetConcurrency(context.Context, []int64, int) (int, error) {
+	return 0, nil
+}
+func (s *userHandlerRepoStub) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
+	return 0, nil
+}
 func (s *userHandlerRepoStub) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
 func (s *userHandlerRepoStub) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	return 0, nil
@@ -180,7 +186,7 @@ func TestUserHandlerUpdateProfileReturnsAvatarURL(t *testing.T) {
 			Status:   service.StatusActive,
 		},
 	}
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil)
 
 	body := []byte(`{"avatar_url":"https://cdn.example.com/avatar.png"}`)
 	recorder := httptest.NewRecorder()
@@ -238,7 +244,7 @@ func TestUserHandlerGetProfileReturnsIdentitySummaries(t *testing.T) {
 			},
 		},
 	}
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -321,7 +327,7 @@ func TestUserHandlerGetProfileReturnsLegacyCompatibilityFields(t *testing.T) {
 			},
 		},
 	}
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -400,7 +406,7 @@ func TestUserHandlerGetProfileDoesNotInferEditedProfileSourcesWithoutMatchingIde
 			},
 		},
 	}
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -549,8 +555,8 @@ func TestUserHandlerBindEmailIdentityReturnsProfileResponse(t *testing.T) {
 		},
 	}
 	emailService := service.NewEmailService(nil, emailCache)
-	authService := service.NewAuthService(nil, repo, nil, nil, cfg, nil, emailService, nil, nil, nil, nil)
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil)
+	authService := service.NewAuthService(nil, repo, nil, nil, cfg, nil, emailService, nil, nil, nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil, nil)
 
 	body := []byte(`{"email":"new@example.com","verify_code":"123456","password":"new-password"}`)
 	recorder := httptest.NewRecorder()
@@ -604,7 +610,7 @@ func TestUserHandlerUnbindIdentityReturnsUpdatedProfile(t *testing.T) {
 			},
 		},
 	}
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -663,8 +669,8 @@ func TestUserHandlerUnbindIdentityRevokesAllUserSessionsWhenAuthServiceConfigure
 			ExpireHour: 1,
 		},
 	}
-	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil)
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil)
+	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -706,8 +712,8 @@ func TestUserHandlerUnbindIdentityDoesNotRevokeSessionsWhenNothingWasUnbound(t *
 			ExpireHour: 1,
 		},
 	}
-	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil)
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil)
+	authService := service.NewAuthService(nil, repo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -750,8 +756,8 @@ func TestUserHandlerBindEmailIdentityRejectsWrongCurrentPasswordForBoundEmail(t 
 		},
 	}
 	emailService := service.NewEmailService(nil, emailCache)
-	authService := service.NewAuthService(nil, repo, nil, nil, cfg, nil, emailService, nil, nil, nil, nil)
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil)
+	authService := service.NewAuthService(nil, repo, nil, nil, cfg, nil, emailService, nil, nil, nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil, nil)
 
 	body := []byte(`{"email":"new@example.com","verify_code":"123456","password":"wrong-password"}`)
 	recorder := httptest.NewRecorder()
@@ -788,7 +794,7 @@ func TestUserHandlerStartIdentityBindingReturnsAuthorizeURL(t *testing.T) {
 			Status:   service.StatusActive,
 		},
 	}
-	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil)
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil)
 
 	body := []byte(`{"provider":"wechat","redirect_to":"/settings/profile"}`)
 	recorder := httptest.NewRecorder()
