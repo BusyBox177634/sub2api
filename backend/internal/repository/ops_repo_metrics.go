@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -24,6 +25,10 @@ func (r *opsRepository) InsertSystemMetrics(ctx context.Context, input *service.
 	createdAt := input.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
+	}
+	diskMountsJSON, err := marshalOpsDiskMounts(input.DiskMounts)
+	if err != nil {
+		return err
 	}
 
 	q := `
@@ -65,6 +70,7 @@ INSERT INTO ops_system_metrics (
   memory_used_mb,
   memory_total_mb,
   memory_usage_percent,
+  disk_mounts_json,
 
   db_ok,
   redis_ok,
@@ -85,14 +91,14 @@ INSERT INTO ops_system_metrics (
   $12,$13,$14,$15,
   $16,$17,$18,$19,$20,$21,
   $22,$23,$24,$25,$26,$27,
-  $28,$29,$30,$31,
-  $32,$33,
-  $34,$35,
-  $36,$37,$38,
-  $39,$40
+  $28,$29,$30,$31,$32,
+  $33,$34,
+  $35,$36,
+  $37,$38,$39,
+  $40,$41
 )`
 
-	_, err := r.db.ExecContext(
+	_, err = r.db.ExecContext(
 		ctx,
 		q,
 		createdAt,
@@ -132,6 +138,7 @@ INSERT INTO ops_system_metrics (
 		opsNullInt(input.MemoryUsedMB),
 		opsNullInt(input.MemoryTotalMB),
 		opsNullFloat64(input.MemoryUsagePercent),
+		diskMountsJSON,
 
 		opsNullBool(input.DBOK),
 		opsNullBool(input.RedisOK),
@@ -167,6 +174,7 @@ SELECT
   memory_used_mb,
   memory_total_mb,
   memory_usage_percent,
+  disk_mounts_json,
 
   db_ok,
   redis_ok,
@@ -193,6 +201,7 @@ LIMIT 1`
 	var memUsed sql.NullInt64
 	var memTotal sql.NullInt64
 	var memPct sql.NullFloat64
+	var diskMountsRaw []byte
 	var dbOK sql.NullBool
 	var redisOK sql.NullBool
 	var redisTotal sql.NullInt64
@@ -212,6 +221,7 @@ LIMIT 1`
 		&memUsed,
 		&memTotal,
 		&memPct,
+		&diskMountsRaw,
 		&dbOK,
 		&redisOK,
 		&redisTotal,
@@ -242,6 +252,7 @@ LIMIT 1`
 		v := memPct.Float64
 		out.MemoryUsagePercent = &v
 	}
+	out.DiskMounts = unmarshalOpsDiskMounts(diskMountsRaw)
 	if dbOK.Valid {
 		v := dbOK.Bool
 		out.DBOK = &v
@@ -284,6 +295,31 @@ LIMIT 1`
 	}
 
 	return &out, nil
+}
+
+func marshalOpsDiskMounts(mounts []service.OpsDiskMountMetric) (string, error) {
+	if len(mounts) == 0 {
+		return "[]", nil
+	}
+	raw, err := json.Marshal(mounts)
+	if err != nil {
+		return "", fmt.Errorf("marshal disk mounts: %w", err)
+	}
+	return string(raw), nil
+}
+
+func unmarshalOpsDiskMounts(raw []byte) []service.OpsDiskMountMetric {
+	if len(raw) == 0 {
+		return []service.OpsDiskMountMetric{}
+	}
+	var mounts []service.OpsDiskMountMetric
+	if err := json.Unmarshal(raw, &mounts); err != nil {
+		return []service.OpsDiskMountMetric{}
+	}
+	if mounts == nil {
+		return []service.OpsDiskMountMetric{}
+	}
+	return mounts
 }
 
 func (r *opsRepository) UpsertJobHeartbeat(ctx context.Context, input *service.OpsUpsertJobHeartbeatInput) error {

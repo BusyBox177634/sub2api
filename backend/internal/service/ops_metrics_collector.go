@@ -8,7 +8,10 @@ import (
 	"log"
 	"math"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
@@ -33,8 +37,11 @@ const (
 	opsMetricsCollectorLeaderLockTTL = 90 * time.Second
 
 	opsMetricsCollectorHeartbeatTimeout = 2 * time.Second
+	opsMetricsDFTimeout                 = 2 * time.Second
 
 	bytesPerMB = 1024 * 1024
+
+	opsMetricsMaxDiskMounts = 32
 )
 
 var opsMetricsCollectorAdvisoryLockID = hashAdvisoryLockID(opsMetricsCollectorLeaderLockKey)
@@ -337,6 +344,7 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 		MemoryUsedMB:       sys.memoryUsedMB,
 		MemoryTotalMB:      sys.memoryTotalMB,
 		MemoryUsagePercent: sys.memoryUsagePercent,
+		DiskMounts:         sys.diskMounts,
 
 		DBOK:    boolPtr(dbOK),
 		RedisOK: boolPtr(redisOK),
@@ -580,6 +588,7 @@ type opsCollectedSystemStats struct {
 	memoryUsedMB       *int64
 	memoryTotalMB      *int64
 	memoryUsagePercent *float64
+	diskMounts         []OpsDiskMountMetric
 }
 
 func (c *OpsMetricsCollector) collectSystemStats(ctx context.Context) (*opsCollectedSystemStats, error) {
@@ -638,7 +647,250 @@ func (c *OpsMetricsCollector) collectSystemStats(ctx context.Context) (*opsColle
 		}
 	}
 
+	out.diskMounts = c.collectDiskMounts(ctx)
 	return out, nil
+}
+
+type opsDiskPartition struct {
+	device     string
+	mountPoint string
+	fstype     string
+}
+
+type opsDiskUsage struct {
+	path        string
+	total       uint64
+	used        uint64
+	free        uint64
+	usedPercent float64
+}
+
+func (c *OpsMetricsCollector) collectDiskMounts(ctx context.Context) []OpsDiskMountMetric {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	partitions, err := disk.PartitionsWithContext(ctx, true)
+	if err != nil {
+		return []OpsDiskMountMetric{}
+	}
+
+	items := make([]opsDiskPartition, 0, len(partitions))
+	for _, p := range partitions {
+		items = append(items, opsDiskPartition{
+			device:     p.Device,
+			mountPoint: p.Mountpoint,
+			fstype:     p.Fstype,
+		})
+	}
+	return collectVisibleDiskMountMetrics(items, resolveOpsMetricsDataDir(), func(partition opsDiskPartition, mountPoint string) (*opsDiskUsage, error) {
+		return collectOpsDiskUsage(ctx, partition, mountPoint)
+	})
+}
+
+func collectVisibleDiskMountMetrics(partitions []opsDiskPartition, dataDir string, usageFor func(partition opsDiskPartition, mountPoint string) (*opsDiskUsage, error)) []OpsDiskMountMetric {
+	if len(partitions) == 0 || usageFor == nil {
+		return []OpsDiskMountMetric{}
+	}
+	out := make([]OpsDiskMountMetric, 0, min(len(partitions), opsMetricsMaxDiskMounts))
+	seen := make(map[string]struct{}, len(partitions))
+	for _, p := range partitions {
+		mountPoint := strings.TrimSpace(p.mountPoint)
+		role := diskMountRole(mountPoint, dataDir)
+		if !shouldCollectDiskMount(mountPoint, p.fstype, p.device, role) {
+			continue
+		}
+		cleanMount := filepath.Clean(mountPoint)
+		if _, ok := seen[cleanMount]; ok {
+			continue
+		}
+		seen[cleanMount] = struct{}{}
+		if !isDir(cleanMount) {
+			continue
+		}
+		usage, err := usageFor(p, cleanMount)
+		if err != nil || usage == nil || usage.total == 0 {
+			continue
+		}
+		out = append(out, OpsDiskMountMetric{
+			MountPoint:   cleanMount,
+			Device:       strings.TrimSpace(p.device),
+			FSType:       strings.TrimSpace(p.fstype),
+			Role:         role,
+			TotalMB:      int64(usage.total / bytesPerMB),
+			UsedMB:       int64(usage.used / bytesPerMB),
+			FreeMB:       int64(usage.free / bytesPerMB),
+			UsagePercent: roundTo1DP(usage.usedPercent),
+		})
+	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].MountPoint == "/" {
+			return true
+		}
+		if out[j].MountPoint == "/" {
+			return false
+		}
+		return out[i].MountPoint < out[j].MountPoint
+	})
+	if len(out) > opsMetricsMaxDiskMounts {
+		return out[:opsMetricsMaxDiskMounts]
+	}
+	return out
+}
+
+func collectOpsDiskUsage(ctx context.Context, partition opsDiskPartition, mountPoint string) (*opsDiskUsage, error) {
+	if shouldUseDFDiskUsage(partition) {
+		if usage, err := collectDFDiskUsage(ctx, mountPoint); err == nil && usage != nil {
+			return usage, nil
+		}
+	}
+	usage, err := disk.UsageWithContext(ctx, mountPoint)
+	if err != nil || usage == nil {
+		return nil, err
+	}
+	return &opsDiskUsage{
+		path:        usage.Path,
+		total:       usage.Total,
+		used:        usage.Used,
+		free:        usage.Free,
+		usedPercent: usage.UsedPercent,
+	}, nil
+}
+
+func shouldUseDFDiskUsage(partition opsDiskPartition) bool {
+	return isDockerDesktopBridgeDiskFSType(partition.fstype) || isDockerDesktopBridgeDiskDevice(partition.device)
+}
+
+func collectDFDiskUsage(ctx context.Context, mountPoint string) (*opsDiskUsage, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dfCtx, cancel := context.WithTimeout(ctx, opsMetricsDFTimeout)
+	defer cancel()
+
+	output, err := exec.CommandContext(dfCtx, "df", "-PB1", mountPoint).Output()
+	if err != nil {
+		return nil, err
+	}
+	return parseDFDiskUsage(mountPoint, string(output))
+}
+
+func parseDFDiskUsage(mountPoint, output string) (*opsDiskUsage, error) {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) < 2 {
+		return nil, errors.New("df output missing usage row")
+	}
+	fields := strings.Fields(lines[len(lines)-1])
+	if len(fields) < 6 {
+		return nil, fmt.Errorf("df output has %d fields", len(fields))
+	}
+	total, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	used, err := strconv.ParseUint(fields[2], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	free, err := strconv.ParseUint(fields[3], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	var usedPercent float64
+	if used+free > 0 {
+		usedPercent = (float64(used) / float64(used+free)) * 100
+	}
+	return &opsDiskUsage{
+		path:        mountPoint,
+		total:       total,
+		used:        used,
+		free:        free,
+		usedPercent: usedPercent,
+	}, nil
+}
+
+func shouldCollectDiskMount(mountPoint, fstype, device, role string) bool {
+	mountPoint = strings.TrimSpace(mountPoint)
+	if mountPoint == "" {
+		return false
+	}
+	cleanMount := filepath.Clean(mountPoint)
+	if cleanMount == "." {
+		return false
+	}
+	if role != "data_dir" {
+		if isIgnoredDiskFSType(fstype) {
+			return false
+		}
+		if isIgnoredDiskDevice(device) {
+			return false
+		}
+	}
+	for _, prefix := range []string{"/proc", "/sys", "/dev", "/run", "/var/run"} {
+		if cleanMount == prefix || strings.HasPrefix(cleanMount, prefix+"/") {
+			return false
+		}
+	}
+	return true
+}
+
+func resolveOpsMetricsDataDir() string {
+	if dataDir := strings.TrimSpace(os.Getenv("DATA_DIR")); dataDir != "" {
+		return filepath.Clean(dataDir)
+	}
+	return "/app/data"
+}
+
+func diskMountRole(mountPoint, dataDir string) string {
+	cleanMount := filepath.Clean(strings.TrimSpace(mountPoint))
+	cleanDataDir := filepath.Clean(strings.TrimSpace(dataDir))
+	if cleanDataDir != "." && cleanMount == cleanDataDir {
+		return "data_dir"
+	}
+	if cleanMount == "/" {
+		return "container_root"
+	}
+	return "mount"
+}
+
+func isIgnoredDiskFSType(fstype string) bool {
+	if isDockerDesktopBridgeDiskFSType(fstype) {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(fstype)) {
+	case "proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2",
+		"pstore", "securityfs", "debugfs", "tracefs", "fusectl", "configfs",
+		"mqueue", "hugetlbfs", "autofs", "binfmt_misc", "nsfs":
+		return true
+	default:
+		return false
+	}
+}
+
+func isIgnoredDiskDevice(device string) bool {
+	return isDockerDesktopBridgeDiskDevice(device)
+}
+
+func isDockerDesktopBridgeDiskFSType(fstype string) bool {
+	return strings.EqualFold(strings.TrimSpace(fstype), "fakeowner")
+}
+
+func isDockerDesktopBridgeDiskDevice(device string) bool {
+	cleanDevice := filepath.Clean(strings.TrimSpace(device))
+	if cleanDevice == "." {
+		return false
+	}
+	for _, prefix := range []string{"/run/host_mark", "/run/desktop/mnt/host", "/host_mnt"} {
+		if cleanDevice == prefix || strings.HasPrefix(cleanDevice, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func (c *OpsMetricsCollector) tryCgroupCPUPercent(now time.Time) *float64 {

@@ -168,3 +168,13 @@ func TestMigration151AddsAccountAutoPauseExpiryPartialIndex(t *testing.T) {
 	require.Contains(t, sql, "auto_pause_on_expired = TRUE")
 	require.Contains(t, sql, "expires_at IS NOT NULL")
 }
+
+func TestMigration156AddsOpsSystemMetricsDiskMountsJSON(t *testing.T) {
+	content, err := FS.ReadFile("156_add_ops_system_metrics_disk_mounts.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "ALTER TABLE ops_system_metrics")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS disk_mounts_json JSONB NOT NULL DEFAULT '[]'::jsonb")
+	require.Contains(t, sql, "COMMENT ON COLUMN ops_system_metrics.disk_mounts_json")
+}

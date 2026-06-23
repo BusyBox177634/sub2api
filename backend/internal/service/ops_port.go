@@ -177,6 +177,7 @@ type OpsInsertSystemMetricsInput struct {
 	MemoryUsedMB       *int64
 	MemoryTotalMB      *int64
 	MemoryUsagePercent *float64
+	DiskMounts         []OpsDiskMountMetric
 
 	DBOK    *bool
 	RedisOK *bool
@@ -255,15 +256,27 @@ type OpsSystemLogCleanupAudit struct {
 	DeletedRows int64
 }
 
+type OpsDiskMountMetric struct {
+	MountPoint   string  `json:"mount_point"`
+	Device       string  `json:"device"`
+	FSType       string  `json:"fstype"`
+	Role         string  `json:"role,omitempty"`
+	TotalMB      int64   `json:"total_mb"`
+	UsedMB       int64   `json:"used_mb"`
+	FreeMB       int64   `json:"free_mb"`
+	UsagePercent float64 `json:"usage_percent"`
+}
+
 type OpsSystemMetricsSnapshot struct {
 	ID            int64     `json:"id"`
 	CreatedAt     time.Time `json:"created_at"`
 	WindowMinutes int       `json:"window_minutes"`
 
-	CPUUsagePercent    *float64 `json:"cpu_usage_percent"`
-	MemoryUsedMB       *int64   `json:"memory_used_mb"`
-	MemoryTotalMB      *int64   `json:"memory_total_mb"`
-	MemoryUsagePercent *float64 `json:"memory_usage_percent"`
+	CPUUsagePercent    *float64             `json:"cpu_usage_percent"`
+	MemoryUsedMB       *int64               `json:"memory_used_mb"`
+	MemoryTotalMB      *int64               `json:"memory_total_mb"`
+	MemoryUsagePercent *float64             `json:"memory_usage_percent"`
+	DiskMounts         []OpsDiskMountMetric `json:"disk_mounts"`
 
 	DBOK    *bool `json:"db_ok"`
 	RedisOK *bool `json:"redis_ok"`

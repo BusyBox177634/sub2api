@@ -253,6 +253,7 @@ export interface OpsSystemMetricsSnapshot {
   memory_used_mb?: number | null
   memory_total_mb?: number | null
   memory_usage_percent?: number | null
+  disk_mounts?: OpsDiskMountMetric[] | null
 
   db_ok?: boolean | null
   redis_ok?: boolean | null
@@ -271,6 +272,17 @@ export interface OpsSystemMetricsSnapshot {
   goroutine_count?: number | null
   concurrency_queue_depth?: number | null
   account_switch_count?: number | null
+}
+
+export interface OpsDiskMountMetric {
+  mount_point: string
+  device: string
+  fstype: string
+  role?: 'data_dir' | 'container_root' | 'mount' | string
+  total_mb: number
+  used_mb: number
+  free_mb: number
+  usage_percent: number
 }
 
 export interface OpsJobHeartbeat {

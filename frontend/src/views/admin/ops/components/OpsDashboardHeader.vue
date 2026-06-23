@@ -6,10 +6,10 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api'
-import { opsAPI, type OpsDashboardOverview, type OpsMetricThresholds, type OpsRealtimeTrafficSummary } from '@/api/admin/ops'
+import { opsAPI, type OpsDashboardOverview, type OpsDiskMountMetric, type OpsMetricThresholds, type OpsRealtimeTrafficSummary } from '@/api/admin/ops'
 import type { OpsRequestDetailsPreset } from './OpsRequestDetailsModal.vue'
 import { useAdminSettingsStore } from '@/stores'
-import { formatNumber } from '@/utils/format'
+import { formatBytes, formatNumber } from '@/utils/format'
 
 type RealtimeWindow = '1min' | '5min' | '30min' | '1h'
 
@@ -669,6 +669,78 @@ const memPercentClass = computed(() => {
   if (v >= 85) return 'text-yellow-600 dark:text-yellow-400'
   return 'text-emerald-600 dark:text-emerald-400'
 })
+
+const diskMounts = computed<OpsDiskMountMetric[]>(() => {
+  const mounts = systemMetrics.value?.disk_mounts
+  return Array.isArray(mounts) ? mounts.filter(isValidDiskMount) : []
+})
+
+const primaryDiskMount = computed<OpsDiskMountMetric | null>(() => {
+  if (!diskMounts.value.length) return null
+  const dataDirMount = diskMounts.value.find(isDataDirDiskMount)
+  if (dataDirMount) return dataDirMount
+  return [...diskMounts.value].sort((a, b) => b.usage_percent - a.usage_percent)[0]
+})
+
+const diskPercentValue = computed<number | null>(() => {
+  const v = primaryDiskMount.value?.usage_percent
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+})
+
+const diskPercentClass = computed(() => {
+  const v = diskPercentValue.value
+  if (v == null) return 'text-gray-900 dark:text-white'
+  if (v >= 95) return 'text-rose-600 dark:text-rose-400'
+  if (v >= 85) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+})
+
+const showDiskDetails = ref(false)
+
+function isValidDiskMount(mount: OpsDiskMountMetric): boolean {
+  return !!mount
+    && typeof mount.mount_point === 'string'
+    && mount.mount_point.length > 0
+    && (
+      isDataDirDiskMount(mount)
+      || (!isIgnoredDiskMountFSType(mount.fstype) && !isIgnoredDiskMountDevice(mount.device))
+    )
+}
+
+function isDataDirDiskMount(mount: OpsDiskMountMetric): boolean {
+  if (!mount) return false
+  if (mount.role === 'data_dir') return true
+  return typeof mount.mount_point === 'string' && mount.mount_point.replace(/\/+$/, '') === '/app/data'
+}
+
+function isIgnoredDiskMountFSType(fstype?: string | null): boolean {
+  return typeof fstype === 'string' && fstype.trim().toLowerCase() === 'fakeowner'
+}
+
+function isIgnoredDiskMountDevice(device?: string | null): boolean {
+  if (typeof device !== 'string') return false
+  const cleanDevice = device.trim().replace(/\/+$/, '')
+  if (!cleanDevice) return false
+  return ['/run/host_mark', '/run/desktop/mnt/host', '/host_mnt'].some((prefix) => {
+    return cleanDevice === prefix || cleanDevice.startsWith(`${prefix}/`)
+  })
+}
+
+function formatDiskSize(mb?: number | null): string {
+  if (typeof mb !== 'number' || !Number.isFinite(mb) || mb < 0) return '-'
+  return formatBytes(mb * 1024 * 1024, 1)
+}
+
+function formatDiskPercent(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
+  return `${value.toFixed(1)}%`
+}
+
+function formatDiskMountRole(mount: OpsDiskMountMetric): string {
+  if (isDataDirDiskMount(mount)) return t('admin.ops.diskRoleDataDir')
+  if (mount.role === 'container_root' || mount.mount_point === '/') return t('admin.ops.diskRoleContainerRoot')
+  return t('admin.ops.diskRoleMount')
+}
 
 const dbConnActiveValue = computed<number | null>(() => {
   const v = systemMetrics.value?.db_conn_active
@@ -1433,7 +1505,7 @@ function handleToolbarRefresh() {
 
     <!-- Integrated: System health (cards) -->
     <div v-if="overview" class="mt-2 border-t border-gray-100 pt-4 dark:border-dark-700">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <!-- CPU -->
         <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
           <div class="flex items-center gap-1">
@@ -1463,6 +1535,37 @@ function handleToolbarRefresh() {
                 ? '-'
                 : `${formatNumber(systemMetrics.memory_used_mb)} / ${formatNumber(systemMetrics.memory_total_mb)} MB`
             }}
+          </div>
+        </div>
+
+        <!-- Disk -->
+        <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.disk') }}</div>
+              <HelpTooltip v-if="!props.fullscreen" :content="t('admin.ops.tooltips.disk')" />
+            </div>
+            <button
+              v-if="!props.fullscreen && diskMounts.length"
+              class="text-[10px] font-bold text-blue-500 hover:underline"
+              type="button"
+              @click="showDiskDetails = true"
+            >
+              {{ t('admin.ops.requestDetails.details') }}
+            </button>
+          </div>
+          <div class="mt-1 text-lg font-black" :class="diskPercentClass">
+            {{ formatDiskPercent(diskPercentValue) }}
+          </div>
+          <div v-if="!props.fullscreen" class="mt-1 truncate text-[10px] text-gray-500 dark:text-gray-400">
+            <template v-if="primaryDiskMount">
+              <span class="font-mono">{{ primaryDiskMount.mount_point }}</span>
+              · {{ t('admin.ops.available') }} {{ formatDiskSize(primaryDiskMount.free_mb) }}
+              / {{ formatDiskSize(primaryDiskMount.total_mb) }}
+            </template>
+            <template v-else>
+              {{ t('admin.ops.noDiskData') }}
+            </template>
           </div>
         </div>
 
@@ -1541,6 +1644,42 @@ function handleToolbarRefresh() {
         </div>
       </div>
     </div>
+
+    <BaseDialog :show="showDiskDetails" :title="t('admin.ops.diskDetails')" width="wide" @close="showDiskDetails = false">
+      <div v-if="!diskMounts.length" class="text-sm text-gray-500 dark:text-gray-400">
+        {{ t('admin.ops.noDiskData') }}
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100 text-sm dark:divide-dark-700">
+          <thead>
+            <tr class="text-left text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <th class="px-3 py-2">{{ t('admin.ops.mountPoint') }}</th>
+              <th class="px-3 py-2">{{ t('admin.ops.diskRole') }}</th>
+              <th class="px-3 py-2">{{ t('admin.ops.device') }}</th>
+              <th class="px-3 py-2">{{ t('admin.ops.filesystem') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('admin.ops.used') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('admin.ops.available') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('admin.ops.total') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('admin.ops.usagePercent') }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+            <tr v-for="mount in diskMounts" :key="mount.mount_point" class="text-gray-700 dark:text-gray-200">
+              <td class="px-3 py-2 font-mono text-xs">{{ mount.mount_point }}</td>
+              <td class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{{ formatDiskMountRole(mount) }}</td>
+              <td class="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{{ mount.device || '-' }}</td>
+              <td class="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{{ mount.fstype || '-' }}</td>
+              <td class="px-3 py-2 text-right font-mono text-xs">{{ formatDiskSize(mount.used_mb) }}</td>
+              <td class="px-3 py-2 text-right font-mono text-xs">{{ formatDiskSize(mount.free_mb) }}</td>
+              <td class="px-3 py-2 text-right font-mono text-xs">{{ formatDiskSize(mount.total_mb) }}</td>
+              <td class="px-3 py-2 text-right font-mono text-xs font-semibold" :class="mount.usage_percent >= 95 ? 'text-rose-600 dark:text-rose-400' : mount.usage_percent >= 85 ? 'text-yellow-600 dark:text-yellow-400' : 'text-emerald-600 dark:text-emerald-400'">
+                {{ formatDiskPercent(mount.usage_percent) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </BaseDialog>
 
     <BaseDialog :show="showJobsDetails" :title="t('admin.ops.jobs')" width="wide" @close="showJobsDetails = false">
       <div v-if="!jobHeartbeats.length" class="text-sm text-gray-500 dark:text-gray-400">
