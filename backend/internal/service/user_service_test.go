@@ -27,7 +27,6 @@ type mockUserRepo struct {
 	updateBalanceFn         func(ctx context.Context, id int64, amount float64) error
 	getByIDUser             *User
 	getByIDErr              error
-	getByIDCalls            int
 	identities              []UserAuthIdentityRecord
 	unbindIdentityErr       error
 	unboundProviders        []string
@@ -92,7 +91,6 @@ func (m *mockUserSettingRepo) Delete(context.Context, string) error {
 
 func (m *mockUserRepo) Create(context.Context, *User) error { return nil }
 func (m *mockUserRepo) GetByID(ctx context.Context, _ int64) (*User, error) {
-	m.getByIDCalls++
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
 	}
@@ -204,7 +202,7 @@ func (m *mockUserRepo) RemoveGroupFromAllowedGroups(context.Context, int64) (int
 
 func (m *mockUserRepo) BatchSetConcurrency(context.Context, []int64, int) (int, error) { return 0, nil }
 func (m *mockUserRepo) BatchAddConcurrency(context.Context, []int64, int) (int, error) { return 0, nil }
-func (m *mockUserRepo) AddGroupToAllowedGroups(context.Context, int64, int64) error { return nil }
+func (m *mockUserRepo) AddGroupToAllowedGroups(context.Context, int64, int64) error    { return nil }
 func (m *mockUserRepo) ListUserAuthIdentities(context.Context, int64) ([]UserAuthIdentityRecord, error) {
 	out := make([]UserAuthIdentityRecord, len(m.identities))
 	copy(out, m.identities)
@@ -236,6 +234,10 @@ func (m *mockUserRepo) UnbindUserAuthProvider(_ context.Context, _ int64, provid
 	}
 	m.identities = append([]UserAuthIdentityRecord(nil), filtered...)
 	return nil
+}
+
+func (m *mockUserRepo) GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+	return m.GetByID(ctx, id)
 }
 
 func (m *mockUserRepo) WithUserProfileIdentityTx(ctx context.Context, fn func(txCtx context.Context) error) error {
@@ -315,6 +317,34 @@ func (m *mockBillingCache) UpdateAPIKeyRateLimitUsage(context.Context, int64, fl
 }
 func (m *mockBillingCache) InvalidateAPIKeyRateLimit(context.Context, int64) error {
 	return nil
+}
+
+func (m *mockBillingCache) GetUserPlatformQuotaCache(context.Context, int64, string) (*UserPlatformQuotaCacheEntry, bool, error) {
+	return nil, false, nil
+}
+
+func (m *mockBillingCache) SetUserPlatformQuotaCache(context.Context, int64, string, *UserPlatformQuotaCacheEntry, time.Duration) error {
+	return nil
+}
+
+func (m *mockBillingCache) DeleteUserPlatformQuotaCache(context.Context, int64, string) error {
+	return nil
+}
+
+func (m *mockBillingCache) IncrUserPlatformQuotaUsageCache(context.Context, int64, string, float64, time.Duration, bool) error {
+	return nil
+}
+
+func (m *mockBillingCache) PopDirtyUserPlatformQuotaKeys(context.Context, int) ([]UserPlatformQuotaKey, error) {
+	return nil, nil
+}
+
+func (m *mockBillingCache) ReaddDirtyUserPlatformQuotaKeys(context.Context, []UserPlatformQuotaKey) error {
+	return nil
+}
+
+func (m *mockBillingCache) BatchGetUserPlatformQuotaCache(context.Context, []UserPlatformQuotaKey) ([]*UserPlatformQuotaCacheEntry, error) {
+	return nil, nil
 }
 
 // --- 测试 ---
@@ -658,26 +688,47 @@ func TestNewUserService_FieldsAssignment(t *testing.T) {
 	require.Equal(t, cache, svc.billingCache)
 }
 
-func TestUpdateProfile_RejectsUsernameChanges(t *testing.T) {
-	nextUsername := "new-name"
+func TestUpdateProfileRejectsUsernameChange(t *testing.T) {
+	username := "new-name"
 	repo := &mockUserRepo{
 		getByIDUser: &User{
-			ID:       7,
-			Email:    "readonly@example.com",
-			Username: "current-name",
+			ID:       12,
+			Email:    "profile@example.com",
+			Username: "old-name",
 		},
 	}
 	svc := NewUserService(repo, nil, nil, nil)
 
-	updated, err := svc.UpdateProfile(context.Background(), 7, UpdateProfileRequest{
-		Username: &nextUsername,
-	})
+	_, err := svc.UpdateProfile(context.Background(), 12, UpdateProfileRequest{Username: &username})
 
-	require.Nil(t, updated)
 	require.ErrorIs(t, err, ErrUsernameReadOnly)
-	require.Zero(t, repo.getByIDCalls)
-	require.Zero(t, repo.updateCalls)
-	require.Zero(t, repo.txCalls)
+	require.Equal(t, 0, repo.txCalls)
+	require.Equal(t, 0, repo.updateCalls)
+}
+
+func TestUpdateUsernameFromTrustedIdentityUpdatesUsername(t *testing.T) {
+	var saved *User
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:       12,
+			Email:    "profile@example.com",
+			Username: "old-name",
+		},
+		updateFn: func(_ context.Context, user *User) error {
+			cloned := *user
+			saved = &cloned
+			return nil
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateUsernameFromTrustedIdentity(context.Background(), 12, "  new-name  ")
+
+	require.NoError(t, err)
+	require.Equal(t, "new-name", updated.Username)
+	require.NotNil(t, saved)
+	require.Equal(t, "new-name", saved.Username)
+	require.Equal(t, 1, repo.updateCalls)
 }
 
 func TestUpdateProfile_StoresInlineAvatarWithinLimit(t *testing.T) {

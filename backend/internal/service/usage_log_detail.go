@@ -12,10 +12,8 @@ import (
 )
 
 const (
-	usageLogDetailMaxStoredRequestBytes  = 64 * 1024
-	usageLogDetailMaxStoredResponseBytes = 64 * 1024
-	usageLogDetailUpsertRetryInterval    = 25 * time.Millisecond
-	usageLogDetailUpsertRetryTimeout     = 750 * time.Millisecond
+	usageLogDetailUpsertRetryInterval = 25 * time.Millisecond
+	usageLogDetailUpsertRetryTimeout  = 750 * time.Millisecond
 )
 
 type UsageLogDetailUnavailableReason string
@@ -91,7 +89,7 @@ func BuildUsageLogDetailFromCapture(capture *UsageLogDetailCapture) *UsageLogDet
 		return nil
 	}
 
-	requestPayloadJSON, requestTruncated, requestPayloadBytes := prepareUsageLogDetailPayload(capture.RequestBody, usageLogDetailMaxStoredRequestBytes)
+	requestPayloadJSON, requestTruncated, requestPayloadBytes := prepareUsageLogDetailPayload(capture.RequestBody)
 	responsePayloadJSON, responseTruncated, responsePayloadBytes := prepareUsageLogDetailResponsePayload(capture)
 
 	return &UsageLogDetail{
@@ -145,11 +143,11 @@ func BuildUsageLogDetailView(
 	return view
 }
 
-func prepareUsageLogDetailPayload(raw []byte, maxBytes int) (payloadJSON *string, truncated bool, payloadBytes *int) {
+func prepareUsageLogDetailPayload(raw []byte) (payloadJSON *string, truncated bool, payloadBytes *int) {
 	if len(raw) == 0 {
 		return nil, false, nil
 	}
-	sanitized, sanitizedTruncated, bytesLen := sanitizeAndTrimRequestBody(raw, maxBytes)
+	sanitized, sanitizedTruncated, bytesLen := sanitizeJSONPayload(raw)
 	if sanitized != "" {
 		out := sanitized
 		payloadJSON = &out
@@ -172,7 +170,7 @@ func prepareUsageLogDetailResponsePayload(capture *UsageLogDetailCapture) (paylo
 		raw = capture.ResponseBody
 	}
 
-	payloadJSON, sanitizedTruncated, payloadBytes := prepareUsageLogDetailPayload(raw, usageLogDetailMaxStoredResponseBytes)
+	payloadJSON, sanitizedTruncated, payloadBytes := prepareUsageLogDetailPayload(raw)
 
 	if capture.ResponseBodyBytes > 0 {
 		n := capture.ResponseBodyBytes

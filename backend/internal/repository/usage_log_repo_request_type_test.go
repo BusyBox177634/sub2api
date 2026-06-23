@@ -76,6 +76,10 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // ip_address
 			log.ImageCount,
 			sqlmock.AnyArg(), // image_size
+			sqlmock.AnyArg(), // image_input_size
+			sqlmock.AnyArg(), // image_output_size
+			sqlmock.AnyArg(), // image_size_source
+			sqlmock.AnyArg(), // image_size_breakdown
 			sqlmock.AnyArg(), // service_tier
 			sqlmock.AnyArg(), // reasoning_effort
 			sqlmock.AnyArg(), // inbound_endpoint
@@ -155,6 +159,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			log.ImageCount,
 			sqlmock.AnyArg(),
+			sqlmock.AnyArg(), // image_input_size
+			sqlmock.AnyArg(), // image_output_size
+			sqlmock.AnyArg(), // image_size_source
+			sqlmock.AnyArg(), // image_size_breakdown
 			serviceTier,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
@@ -230,10 +238,72 @@ func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 }
 
+func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
+	imageSize := "4K"
+	inputSize := "1024x1024"
+	outputSize := "3840x2160"
+	source := "output"
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:             1,
+		APIKeyID:           2,
+		AccountID:          3,
+		RequestID:          "req-image-metadata",
+		Model:              "gpt-image-2",
+		RequestedModel:     "gpt-image-2",
+		ImageCount:         2,
+		ImageSize:          &imageSize,
+		ImageInputSize:     &inputSize,
+		ImageOutputSize:    &outputSize,
+		ImageSizeSource:    &source,
+		ImageSizeBreakdown: map[string]int{"1K": 1, "4K": 1},
+		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
+	})
+
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[34])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[35])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[36])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[37])
+	breakdownJSON, ok := prepared.args[38].(string)
+	require.True(t, ok)
+	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
+}
+
 func TestCoalesceTrimmedString(t *testing.T) {
 	require.Equal(t, "fallback", coalesceTrimmedString(sql.NullString{}, "fallback"))
 	require.Equal(t, "fallback", coalesceTrimmedString(sql.NullString{Valid: true, String: "   "}, "fallback"))
 	require.Equal(t, "value", coalesceTrimmedString(sql.NullString{Valid: true, String: "value"}, "fallback"))
+}
+
+func TestAppendUsageLogBillingModeWhereCondition(t *testing.T) {
+	tests := []struct {
+		name          string
+		billingMode   string
+		wantCondition string
+	}{
+		{
+			name:          "image includes legacy image rows",
+			billingMode:   string(service.BillingModeImage),
+			wantCondition: "(billing_mode = $1 OR COALESCE(image_count, 0) > 0)",
+		},
+		{
+			name:          "token includes legacy non-image rows",
+			billingMode:   string(service.BillingModeToken),
+			wantCondition: "(billing_mode = $1 OR ((billing_mode IS NULL OR billing_mode = '') AND COALESCE(image_count, 0) <= 0))",
+		},
+		{
+			name:          "per request remains exact",
+			billingMode:   string(service.BillingModePerRequest),
+			wantCondition: "billing_mode = $1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conditions, args := appendUsageLogBillingModeWhereCondition(nil, nil, tt.billingMode)
+			require.Equal(t, []string{tt.wantCondition}, conditions)
+			require.Equal(t, []any{tt.billingMode}, args)
+		})
+	}
 }
 
 func anySliceToDriverValues(values []any) []driver.Value {
@@ -269,6 +339,37 @@ func TestUsageLogRepositoryListWithFiltersRequestTypePriority(t *testing.T) {
 	require.NotNil(t, page)
 	require.Equal(t, int64(0), page.Total)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryListWithFiltersContentKeywordUsesRequestPayloadOnly(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	filters := usagestats.UsageLogFilters{
+		UserID:         42,
+		ContentKeyword: "secret prompt",
+	}
+
+	countPattern := `SELECT COUNT\(\*\) FROM usage_logs WHERE user_id = \$1 AND\s+EXISTS \(\s+SELECT 1\s+FROM usage_log_details d\s+WHERE d\.usage_log_id = usage_logs\.id\s+AND d\.request_payload_json ILIKE \$2\s+\)`
+	listPattern := `SELECT .* FROM usage_logs WHERE user_id = \$1 AND\s+EXISTS \(\s+SELECT 1\s+FROM usage_log_details d\s+WHERE d\.usage_log_id = usage_logs\.id\s+AND d\.request_payload_json ILIKE \$2\s+\) ORDER BY id DESC LIMIT \$3 OFFSET \$4`
+
+	mock.ExpectQuery(countPattern).
+		WithArgs(int64(42), "%secret prompt%").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	mock.ExpectQuery(listPattern).
+		WithArgs(int64(42), "%secret prompt%", 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, filters)
+	require.NoError(t, err)
+	require.Empty(t, logs)
+	require.NotNil(t, page)
+	require.Equal(t, int64(0), page.Total)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryContentKeywordDisablesFastTotal(t *testing.T) {
+	require.False(t, shouldUseFastUsageLogTotal(usagestats.UsageLogFilters{ContentKeyword: "prompt"}))
 }
 
 func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testing.T) {
@@ -528,6 +629,63 @@ func (s usageLogScannerStub) Scan(dest ...any) error {
 }
 
 func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
+	t.Run("image_size_metadata_is_scanned", func(t *testing.T) {
+		now := time.Now().UTC()
+		log, err := scanUsageLog(usageLogScannerStub{values: []any{
+			int64(4),
+			int64(13),
+			int64(23),
+			int64(33),
+			sql.NullString{Valid: true, String: "req-image-metadata"},
+			"gpt-image-2",
+			sql.NullString{Valid: true, String: "gpt-image-2"},
+			sql.NullString{},
+			sql.NullInt64{},
+			sql.NullInt64{},
+			0, 0, 0, 0, 0, 0,
+			0, 0.0, // image_output_tokens, image_output_cost
+			0.0, 0.0, 0.0, 0.0, 0.8, 0.8,
+			1.0,
+			sql.NullFloat64{},
+			int16(service.BillingTypeBalance),
+			int16(service.RequestTypeSync),
+			false,
+			false,
+			sql.NullInt64{},
+			sql.NullInt64{},
+			sql.NullString{},
+			sql.NullString{},
+			2,
+			sql.NullString{Valid: true, String: "4K"},
+			sql.NullString{Valid: true, String: "1024x1024"},
+			sql.NullString{Valid: true, String: "3840x2160"},
+			sql.NullString{Valid: true, String: "output"},
+			sql.NullString{Valid: true, String: `{"4K":2}`},
+			sql.NullString{},
+			sql.NullString{},
+			sql.NullString{},
+			sql.NullString{},
+			false,
+			sql.NullInt64{},
+			sql.NullString{},
+			sql.NullString{},
+			sql.NullString{},
+			sql.NullFloat64{},
+			now,
+		}})
+		require.NoError(t, err)
+		require.Equal(t, 2, log.ImageCount)
+		require.NotNil(t, log.ImageSize)
+		require.Equal(t, "4K", *log.ImageSize)
+		require.NotNil(t, log.ImageInputSize)
+		require.Equal(t, "1024x1024", *log.ImageInputSize)
+		require.NotNil(t, log.ImageOutputSize)
+		require.Equal(t, "3840x2160", *log.ImageOutputSize)
+		require.NotNil(t, log.ImageSizeSource)
+		require.Equal(t, "output", *log.ImageSizeSource)
+		require.Equal(t, map[string]int{"4K": 2}, log.ImageSizeBreakdown)
+	})
+
 	t.Run("request_type_ws_v2_overrides_legacy", func(t *testing.T) {
 		now := time.Now().UTC()
 		log, err := scanUsageLog(usageLogScannerStub{values: []any{
@@ -567,6 +725,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			0,
 			sql.NullString{},
+			sql.NullString{}, // image_input_size
+			sql.NullString{}, // image_output_size
+			sql.NullString{}, // image_size_source
+			sql.NullString{}, // image_size_breakdown
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
 			sql.NullString{},
@@ -615,6 +777,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			0,
 			sql.NullString{},
+			sql.NullString{}, // image_input_size
+			sql.NullString{}, // image_output_size
+			sql.NullString{}, // image_size_source
+			sql.NullString{}, // image_size_breakdown
 			sql.NullString{Valid: true, String: "flex"},
 			sql.NullString{},
 			sql.NullString{},
@@ -663,6 +829,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			0,
 			sql.NullString{},
+			sql.NullString{}, // image_input_size
+			sql.NullString{}, // image_output_size
+			sql.NullString{}, // image_size_source
+			sql.NullString{}, // image_size_breakdown
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
 			sql.NullString{},

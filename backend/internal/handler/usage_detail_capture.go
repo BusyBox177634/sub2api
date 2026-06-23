@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"net/http"
 	"sync"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -9,19 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const usageDetailCaptureWriterLimit = 64 * 1024
-
 type usageDetailCaptureWriter struct {
 	gin.ResponseWriter
-	limit      int
 	totalBytes int
-	truncated  bool
 	buf        bytes.Buffer
 }
 
 var usageDetailCaptureWriterPool = sync.Pool{
 	New: func() any {
-		return &usageDetailCaptureWriter{limit: usageDetailCaptureWriterLimit}
+		return &usageDetailCaptureWriter{}
 	},
 }
 
@@ -31,9 +28,7 @@ func acquireUsageDetailCaptureWriter(rw gin.ResponseWriter) *usageDetailCaptureW
 		writer = &usageDetailCaptureWriter{}
 	}
 	writer.ResponseWriter = rw
-	writer.limit = usageDetailCaptureWriterLimit
 	writer.totalBytes = 0
-	writer.truncated = false
 	writer.buf.Reset()
 	return writer
 }
@@ -43,9 +38,7 @@ func releaseUsageDetailCaptureWriter(writer *usageDetailCaptureWriter) {
 		return
 	}
 	writer.ResponseWriter = nil
-	writer.limit = usageDetailCaptureWriterLimit
 	writer.totalBytes = 0
-	writer.truncated = false
 	writer.buf.Reset()
 	usageDetailCaptureWriterPool.Put(writer)
 }
@@ -60,21 +53,19 @@ func (w *usageDetailCaptureWriter) WriteString(s string) (int, error) {
 	return w.ResponseWriter.WriteString(s)
 }
 
+func (w *usageDetailCaptureWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+		return
+	}
+	w.ResponseWriter.Flush()
+}
+
 func (w *usageDetailCaptureWriter) captureBytes(b []byte) {
 	if w == nil || len(b) == 0 {
 		return
 	}
 	w.totalBytes += len(b)
-	if w.limit <= 0 || w.buf.Len() >= w.limit {
-		w.truncated = true
-		return
-	}
-	remaining := w.limit - w.buf.Len()
-	if len(b) > remaining {
-		_, _ = w.buf.Write(b[:remaining])
-		w.truncated = true
-		return
-	}
 	_, _ = w.buf.Write(b)
 }
 
@@ -84,7 +75,7 @@ func (w *usageDetailCaptureWriter) snapshot() ([]byte, int, bool) {
 	}
 	payload := make([]byte, w.buf.Len())
 	copy(payload, w.buf.Bytes())
-	return payload, w.totalBytes, w.truncated
+	return payload, w.totalBytes, false
 }
 
 type usageDetailCaptureState struct {
@@ -162,6 +153,30 @@ func usageDetailResponseFormatFromStream(stream bool) service.UsageLogDetailResp
 		return service.UsageLogDetailResponseFormatSSE
 	}
 	return service.UsageLogDetailResponseFormatJSON
+}
+
+func captureForwardUsageDetail(
+	c *gin.Context,
+	requestBody []byte,
+	stream bool,
+	forward func() (*service.ForwardResult, error),
+) (*service.ForwardResult, *service.UsageLogDetailCapture, error) {
+	state := beginUsageDetailCapture(c, requestBody, usageDetailResponseFormatFromStream(stream))
+	defer state.Close(c)
+	result, err := forward()
+	return result, state.Build(), err
+}
+
+func captureOpenAIForwardUsageDetail(
+	c *gin.Context,
+	requestBody []byte,
+	stream bool,
+	forward func() (*service.OpenAIForwardResult, error),
+) (*service.OpenAIForwardResult, *service.UsageLogDetailCapture, error) {
+	state := beginUsageDetailCapture(c, requestBody, usageDetailResponseFormatFromStream(stream))
+	defer state.Close(c)
+	result, err := forward()
+	return result, state.Build(), err
 }
 
 func buildUsageDetailCapture(

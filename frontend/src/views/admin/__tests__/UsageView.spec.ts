@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getDetail, getStats, getSnapshotV2, getById, showError } = vi.hoisted(() => {
+const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, getDetail, showError } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -12,12 +12,14 @@ const { list, getDetail, getStats, getSnapshotV2, getById, showError } = vi.hois
 
   return {
     list: vi.fn(),
-    getDetail: vi.fn(),
     getStats: vi.fn(),
     getSnapshotV2: vi.fn(),
-    getById: vi.fn(),
-    showError: vi.fn(),
-  }
+		getById: vi.fn(),
+		getModelStats: vi.fn(),
+		listErrorLogs: vi.fn(),
+		getDetail: vi.fn(),
+		showError: vi.fn(),
+	}
 })
 
 const messages: Record<string, string> = {
@@ -25,6 +27,7 @@ const messages: Record<string, string> = {
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
   'admin.usage.failedToLoadUser': 'Failed to load user',
+  'usage.detailLoadFailed': 'Detail load failed',
 }
 
 const formatLocalDate = (date: Date): string => {
@@ -42,6 +45,7 @@ vi.mock('@/api/admin', () => ({
     },
     dashboard: {
       getSnapshotV2,
+      getModelStats,
     },
     users: {
       getById,
@@ -54,6 +58,10 @@ vi.mock('@/api/admin/usage', () => ({
     list: vi.fn(),
     getDetail,
   },
+}))
+
+vi.mock('@/api/admin/ops', () => ({
+  listErrorLogs,
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -87,6 +95,10 @@ vi.mock('vue-router', () => ({
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
 const UsageFiltersStub = { template: '<div><slot name="after-reset" /></div>' }
+const UsageTableStub = {
+  emits: ['userClick', 'detailClick'],
+  template: '<div data-test="usage-table"><button class="user-click" @click="$emit(\'userClick\', 2)">user</button><button class="detail-click" @click="$emit(\'detailClick\', { id: 14, request_id: \'req-admin-detail\' })">detail</button></div>',
+}
 const ModelDistributionChartStub = {
   props: ['metric'],
   emits: ['update:metric'],
@@ -112,11 +124,10 @@ describe('admin UsageView distribution metric toggles', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     list.mockReset()
-    getDetail.mockReset()
     getStats.mockReset()
     getSnapshotV2.mockReset()
     getById.mockReset()
-    showError.mockReset()
+    getModelStats.mockReset()
 
     list.mockResolvedValue({
       items: [],
@@ -138,10 +149,42 @@ describe('admin UsageView distribution metric toggles', () => {
       models: [],
       groups: [],
     })
+    getModelStats.mockResolvedValue({ models: [] })
   })
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('keeps previous model stats visible during refresh until new data arrives', async () => {
+    // 首次加载返回 A
+    getModelStats.mockResolvedValueOnce({ models: [{ model: 'A', total_tokens: 10 }] })
+
+    const wrapper = mount(UsageView, {
+      global: { stubs: {
+        AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
+        UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
+        UserBalanceHistoryModal: true, AuditLogModal: true, Pagination: true, Select: true,
+        DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        ModelDistributionChart: ModelDistributionChartStub, GroupDistributionChart: GroupDistributionChartStub,
+        EndpointDistributionChart: true,
+      } },
+    })
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'A', total_tokens: 10 }])
+
+    // 刷新:让第二次 getModelStats 处于 pending,断言旧数据 A 仍在(不被清空成 [])
+    let resolveSecond: (v: any) => void = () => {}
+    getModelStats.mockReturnValueOnce(new Promise((res) => { resolveSecond = res }))
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'A', total_tokens: 10 }])
+
+    // 新数据到达后替换为 B
+    resolveSecond({ models: [{ model: 'B', total_tokens: 20 }] })
+    await flushPromises()
+    expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'B', total_tokens: 20 }])
   })
 
   it('keeps model and group metric toggles independent without refetching chart data', async () => {
@@ -155,7 +198,6 @@ describe('admin UsageView distribution metric toggles', () => {
           UsageExportProgress: true,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
-          UsageLogDetailDialog: true,
           Pagination: true,
           Select: true,
           DateRangePicker: true,
@@ -199,8 +241,112 @@ describe('admin UsageView distribution metric toggles', () => {
     expect(groupChart.find('.metric').text()).toBe('actual_cost')
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
   })
+})
 
-  it('loads usage detail on demand', async () => {
+describe('admin UsageView handleUserClick', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset()
+    getStats.mockReset()
+    getSnapshotV2.mockReset()
+    getById.mockReset()
+
+    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockResolvedValue({
+      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
+      total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
+    })
+    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('opens user via include_deleted when clicking a usage row user', async () => {
+    getById.mockResolvedValue({ id: 2, email: 'd@test.com', deleted_at: '2026-05-28T00:00:00Z' })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: UsageTableStub,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          AuditLogModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    await wrapper.find('[data-test="usage-table"] .user-click').trigger('click')
+    await flushPromises()
+
+    expect(getById).toHaveBeenCalledWith(2, true)
+  })
+})
+
+describe('admin UsageView detail dialog', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset()
+    getStats.mockReset()
+    getSnapshotV2.mockReset()
+    getModelStats.mockReset()
+    getDetail.mockReset()
+    showError.mockReset()
+
+    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockResolvedValue({
+      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
+      total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
+    })
+    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+    getModelStats.mockResolvedValue({ models: [] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const mountUsageViewWithDetailStub = () => mount(UsageView, {
+    global: {
+      stubs: {
+        AppLayout: AppLayoutStub,
+        UsageStatsCards: true,
+        UsageFilters: UsageFiltersStub,
+        UsageTable: UsageTableStub,
+        UsageExportProgress: true,
+        UsageCleanupDialog: true,
+        UserBalanceHistoryModal: true,
+        AuditLogModal: true,
+        Pagination: true,
+        Select: true,
+        DateRangePicker: true,
+        Icon: true,
+        TokenUsageTrend: true,
+        ModelDistributionChart: true,
+        GroupDistributionChart: true,
+        EndpointDistributionChart: true,
+        UsageLogDetailDialog: true,
+      },
+    },
+  })
+
+  it('loads usage detail when the table detail action is clicked', async () => {
     getDetail.mockResolvedValue({
       available: true,
       request_messages: [{ role: 'user', source: 'request', text: 'hello' }],
@@ -209,74 +355,65 @@ describe('admin UsageView distribution metric toggles', () => {
       response_truncated: false,
     })
 
-    const wrapper = mount(UsageView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          UsageStatsCards: true,
-          UsageFilters: UsageFiltersStub,
-          UsageTable: true,
-          UsageExportProgress: true,
-          UsageCleanupDialog: true,
-          UserBalanceHistoryModal: true,
-          UsageLogDetailDialog: true,
-          Pagination: true,
-          Select: true,
-          DateRangePicker: true,
-          Icon: true,
-          TokenUsageTrend: true,
-          ModelDistributionChart: ModelDistributionChartStub,
-          GroupDistributionChart: GroupDistributionChartStub,
-        },
-      },
-    })
+    const wrapper = mountUsageViewWithDetailStub()
 
     vi.advanceTimersByTime(120)
     await flushPromises()
 
-    const setupState = (wrapper.vm as any).$?.setupState
-    await setupState.openDetail({ id: 321, request_id: 'req-admin-detail', model: 'gpt-5.4', created_at: '2026-03-08T00:00:00Z' })
+    await wrapper.find('[data-test="usage-table"] .detail-click').trigger('click')
     await flushPromises()
 
-    expect(getDetail).toHaveBeenCalledWith(321)
+    const setupState = (wrapper.vm as any).$?.setupState
+    expect(getDetail).toHaveBeenCalledWith(14)
     expect(setupState.detailDialogVisible).toBe(true)
     expect(setupState.detailData.available).toBe(true)
   })
 
-  it('includes details in visible and toggleable columns by default', async () => {
-    const wrapper = mount(UsageView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          UsageStatsCards: true,
-          UsageFilters: UsageFiltersStub,
-          UsageTable: true,
-          UsageExportProgress: true,
-          UsageCleanupDialog: true,
-          UserBalanceHistoryModal: true,
-          UsageLogDetailDialog: true,
-          Pagination: true,
-          Select: true,
-          DateRangePicker: true,
-          Icon: true,
-          TokenUsageTrend: true,
-          ModelDistributionChart: ModelDistributionChartStub,
-          GroupDistributionChart: GroupDistributionChartStub,
-        },
-      },
-    })
+  it('closes the detail dialog when detail loading fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getDetail.mockRejectedValue(new Error('not found'))
+
+    const wrapper = mountUsageViewWithDetailStub()
 
     vi.advanceTimersByTime(120)
     await flushPromises()
 
+    await wrapper.find('[data-test="usage-table"] .detail-click').trigger('click')
+    await flushPromises()
+
     const setupState = (wrapper.vm as any).$?.setupState
-    expect(setupState.visibleColumns.some((col: { key: string }) => col.key === 'details')).toBe(true)
-    expect(setupState.toggleableColumns.some((col: { key: string }) => col.key === 'details')).toBe(true)
+    expect(showError).toHaveBeenCalledWith('Detail load failed')
+    expect(setupState.detailDialogVisible).toBe(false)
+    expect(setupState.detailData).toBeNull()
+
+    consoleError.mockRestore()
+  })
+})
+
+describe('admin UsageView content keyword filter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset()
+    getStats.mockReset()
+    getSnapshotV2.mockReset()
+    getModelStats.mockReset()
+    getDetail.mockReset()
+    showError.mockReset()
+
+    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockResolvedValue({
+      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
+      total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
+    })
+    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+    getModelStats.mockResolvedValue({ models: [] })
   })
 
-  it('clears detail state and shows an error when detail load fails', async () => {
-    getDetail.mockRejectedValue(new Error('boom'))
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
+  it('passes request content keyword to admin usage list', async () => {
     const wrapper = mount(UsageView, {
       global: {
         stubs: {
@@ -287,29 +424,89 @@ describe('admin UsageView distribution metric toggles', () => {
           UsageExportProgress: true,
           UsageCleanupDialog: true,
           UserBalanceHistoryModal: true,
-          UsageLogDetailDialog: true,
+          AuditLogModal: true,
           Pagination: true,
           Select: true,
           DateRangePicker: true,
           Icon: true,
           TokenUsageTrend: true,
-          ModelDistributionChart: ModelDistributionChartStub,
-          GroupDistributionChart: GroupDistributionChartStub,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
         },
       },
     })
 
     vi.advanceTimersByTime(120)
     await flushPromises()
+    list.mockClear()
 
-    const setupState = (wrapper.vm as any).$?.setupState
-    await setupState.openDetail({ id: 999, request_id: 'req-admin-fail', model: 'gpt-5.4', created_at: '2026-03-08T00:00:00Z' })
+    const vm = wrapper.vm as any
+    vm.filters.content_keyword = 'needle prompt'
+    vm.loadLogs()
     await flushPromises()
 
-    expect(getDetail).toHaveBeenCalledWith(999)
-    expect(showError).toHaveBeenCalled()
-    expect(setupState.detailDialogVisible).toBe(true)
-    expect(setupState.detailLoading).toBe(false)
-    expect(setupState.detailData).toBeNull()
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ content_keyword: 'needle prompt' }),
+      expect.any(Object)
+    )
+  })
+})
+
+describe('admin UsageView errors tab filter forwarding', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset()
+    getStats.mockReset()
+    getSnapshotV2.mockReset()
+    getModelStats.mockReset()
+    listErrorLogs.mockReset()
+
+    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockResolvedValue({
+      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
+      total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
+    })
+    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+    getModelStats.mockResolvedValue({ models: [] })
+    listErrorLogs.mockResolvedValue({ items: [], total: 0, pages: 0 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('forwards model/account_id/group_id to listErrorLogs on the errors tab', async () => {
+    const wrapper = mount(UsageView, {
+      global: { stubs: {
+        AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
+        UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
+        UserBalanceHistoryModal: true, AuditLogModal: true, Pagination: true, Select: true,
+        DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        ModelDistributionChart: true, GroupDistributionChart: true, EndpointDistributionChart: true,
+        OpsErrorLogTable: true, OpsErrorDetailModal: true,
+      } },
+    })
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    // 模拟用户在过滤器里选择了模型/账户/分组
+    const vm = wrapper.vm as any
+    vm.filters.model = 'gpt-5.3-codex'
+    vm.filters.account_id = 7
+    vm.filters.group_id = 3
+    await flushPromises()
+
+    // 切换到「错误请求」标签（第二个 .tab 按钮）触发 loadAdminErrors
+    const tabs = wrapper.findAll('button.tab')
+    await tabs[1].trigger('click')
+    await flushPromises()
+
+    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({
+      view: 'all',
+      model: 'gpt-5.3-codex',
+      account_id: 7,
+      group_id: 3,
+    }))
   })
 })

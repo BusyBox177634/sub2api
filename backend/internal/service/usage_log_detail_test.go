@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,11 +12,11 @@ func TestBuildUsageLogDetailFromCapture_RedactsRequestAndNormalizesSSE(t *testin
 	responseBody := []byte("data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\" world\"}\n\ndata: [DONE]\n\n")
 
 	detail := BuildUsageLogDetailFromCapture(&UsageLogDetailCapture{
-		RequestBody:             requestBody,
-		ResponseBody:            responseBody,
-		ResponseBodyBytes:       len(responseBody),
+		RequestBody:              requestBody,
+		ResponseBody:             responseBody,
+		ResponseBodyBytes:        len(responseBody),
 		ResponseCaptureTruncated: false,
-		ResponseFormat:          UsageLogDetailResponseFormatSSE,
+		ResponseFormat:           UsageLogDetailResponseFormatSSE,
 	})
 
 	require.NotNil(t, detail)
@@ -29,13 +30,41 @@ func TestBuildUsageLogDetailFromCapture_RedactsRequestAndNormalizesSSE(t *testin
 	require.Equal(t, len(responseBody), *detail.ResponsePayloadBytes)
 }
 
+func TestBuildUsageLogDetailFromCapture_DoesNotTruncateLargeJSONPayloads(t *testing.T) {
+	longRequest := strings.Repeat("request-content-", 5000)
+	longResponse := strings.Repeat("response-content-", 5000)
+	requestBody := []byte(`{"model":"gpt-5","api_key":"secret-key","messages":[{"role":"user","content":"` + longRequest + `"}]}`)
+	responseBody := []byte(`{"choices":[{"message":{"role":"assistant","content":"` + longResponse + `"}}]}`)
+
+	detail := BuildUsageLogDetailFromCapture(&UsageLogDetailCapture{
+		RequestBody:       requestBody,
+		ResponseBody:      responseBody,
+		ResponseBodyBytes: len(responseBody),
+		ResponseFormat:    UsageLogDetailResponseFormatJSON,
+	})
+
+	require.NotNil(t, detail)
+	require.False(t, detail.RequestTruncated)
+	require.False(t, detail.ResponseTruncated)
+	require.NotNil(t, detail.RequestPayloadJSON)
+	require.NotNil(t, detail.ResponsePayloadJSON)
+	require.Contains(t, *detail.RequestPayloadJSON, longRequest)
+	require.Contains(t, *detail.ResponsePayloadJSON, longResponse)
+	require.NotContains(t, *detail.RequestPayloadJSON, "secret-key")
+	require.Contains(t, *detail.RequestPayloadJSON, `[REDACTED]`)
+	require.NotNil(t, detail.RequestPayloadBytes)
+	require.Equal(t, len(requestBody), *detail.RequestPayloadBytes)
+	require.NotNil(t, detail.ResponsePayloadBytes)
+	require.Equal(t, len(responseBody), *detail.ResponsePayloadBytes)
+}
+
 func TestBuildUsageLogDetailView_ParsesRequestAndResponseMessages(t *testing.T) {
 	requestPayload := `{"system":"You are a helpful assistant","messages":[{"role":"user","content":"Hi"}]}`
 	responsePayload := `{"choices":[{"message":{"role":"assistant","content":"Hello back"}}]}`
 
 	view := BuildUsageLogDetailView(true, &UsageLog{ID: 1}, &UsageLogDetail{
-		UsageLogID:         1,
-		RequestPayloadJSON: &requestPayload,
+		UsageLogID:          1,
+		RequestPayloadJSON:  &requestPayload,
 		ResponsePayloadJSON: &responsePayload,
 	})
 
