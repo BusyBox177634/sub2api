@@ -35,6 +35,7 @@ export interface OpsDashboardOverview {
 
   system_metrics?: OpsSystemMetricsSnapshot | null
   job_heartbeats?: OpsJobHeartbeat[] | null
+  usage_detail_retention?: OpsUsageDetailRetentionStatus | null
 
   success_count: number
   error_count_total: number
@@ -65,6 +66,32 @@ export interface OpsDashboardOverview {
 
   duration: OpsPercentiles
   ttft: OpsPercentiles
+}
+
+export type OpsUsageDetailRetentionPhase = 'idle' | 'counting' | 'processing' | 'waiting' | 'stopped'
+
+export interface OpsUsageDetailRetentionStatus {
+  enabled: boolean
+  running: boolean
+  phase: OpsUsageDetailRetentionPhase
+  cutoff?: string | null
+  window_start?: string | null
+  window_end?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  next_run_at?: string | null
+  total_pending_at_start: number
+  remaining_pending: number
+  processed: number
+  cleaned: number
+  compressed_request: number
+  compressed_response: number
+  fallback_empty: number
+  skipped: number
+  failed: number
+  last_usage_log_id?: number
+  last_error?: string | null
+  progress_percent: number
 }
 
 export interface OpsPercentiles {

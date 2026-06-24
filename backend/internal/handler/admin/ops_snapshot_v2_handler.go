@@ -86,6 +86,16 @@ func (h *OpsHandler) GetDashboardSnapshotV2(c *gin.Context) {
 			}
 		}
 		c.Header("X-Snapshot-Cache", "hit")
+		if payload, ok := cached.Payload.(*opsDashboardSnapshotV2Response); ok && payload != nil {
+			respCopy := *payload
+			if payload.Overview != nil {
+				overviewCopy := *payload.Overview
+				h.opsService.AttachUsageDetailRetentionStatus(&overviewCopy)
+				respCopy.Overview = &overviewCopy
+			}
+			response.Success(c, &respCopy)
+			return
+		}
 		response.Success(c, cached.Payload)
 		return
 	}

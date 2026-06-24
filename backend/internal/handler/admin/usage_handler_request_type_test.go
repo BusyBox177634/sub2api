@@ -104,19 +104,7 @@ func TestAdminUsageListExactTotalTrue(t *testing.T) {
 	require.True(t, repo.listFilters.ExactTotal)
 }
 
-func TestAdminUsageListContentKeyword(t *testing.T) {
-	repo := &adminUsageRepoCapture{}
-	router := newAdminUsageRequestTypeTestRouter(repo)
-
-	req := httptest.NewRequest(http.MethodGet, "/admin/usage?content_keyword=hello%20world", nil)
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "hello world", repo.listFilters.ContentKeyword)
-}
-
-func TestAdminUsageListContentKeywordTooLong(t *testing.T) {
+func TestAdminUsageListContentKeywordIgnored(t *testing.T) {
 	repo := &adminUsageRepoCapture{}
 	router := newAdminUsageRequestTypeTestRouter(repo)
 
@@ -124,7 +112,7 @@ func TestAdminUsageListContentKeywordTooLong(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestAdminUsageListInvalidExactTotal(t *testing.T) {

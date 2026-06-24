@@ -10,6 +10,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/enttest"
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +53,48 @@ func TestUserRepositoryGetByEmailNormalizesLegacySpacingAndCase(t *testing.T) {
 	got, err := repo.GetByEmail(ctx, "legacy@example.com")
 	require.NoError(t, err)
 	require.Equal(t, " Legacy@Example.com ", got.Email)
+}
+
+func TestUserRepositoryGetByEmailPreservesPasswordHashForLogin(t *testing.T) {
+	repo, _ := newUserEntRepo(t)
+	ctx := context.Background()
+
+	authSvc := service.NewAuthService(
+		nil,
+		repo,
+		nil,
+		nil,
+		&config.Config{JWT: config.JWTConfig{Secret: "unit-test-secret", ExpireHour: 1}},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	hash, err := authSvc.HashPassword("SP123456")
+	require.NoError(t, err)
+
+	err = repo.Create(ctx, &service.User{
+		Email:        "login@example.com",
+		Username:     "login-user",
+		PasswordHash: hash,
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetByEmail(ctx, "login@example.com")
+	require.NoError(t, err)
+	require.Equal(t, hash, got.PasswordHash)
+	require.True(t, authSvc.CheckPassword("SP123456", got.PasswordHash))
+
+	token, user, err := authSvc.Login(ctx, "login@example.com", "SP123456")
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	require.Equal(t, "login@example.com", user.Email)
 }
 
 func TestUserRepositoryExistsByEmailNormalizesLegacySpacingAndCase(t *testing.T) {

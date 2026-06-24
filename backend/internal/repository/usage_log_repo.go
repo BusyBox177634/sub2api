@@ -160,22 +160,6 @@ func appendUsageLogBillingModeWhereCondition(conditions []string, args []any, bi
 	return conditions, args
 }
 
-func appendUsageLogContentKeywordWhereCondition(conditions []string, args []any, keyword string) ([]string, []any) {
-	keyword = strings.TrimSpace(keyword)
-	if keyword == "" {
-		return conditions, args
-	}
-	conditions = append(conditions, fmt.Sprintf(`
-EXISTS (
-	SELECT 1
-	FROM usage_log_details d
-	WHERE d.usage_log_id = usage_logs.id
-	  AND d.request_payload_json ILIKE $%d
-)`, len(args)+1))
-	args = append(args, "%"+escapeLikePattern(keyword)+"%")
-	return conditions, args
-}
-
 // appendRawUsageLogModelQueryFilter keeps direct model filters on the raw model column for backward
 // compatibility with historical rows. Requested/upstream analytics must use
 // resolveModelDimensionExpression instead.
@@ -2829,7 +2813,6 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 		args = append(args, int16(*filters.BillingType))
 	}
 	conditions, args = appendUsageLogBillingModeWhereCondition(conditions, args, filters.BillingMode)
-	conditions, args = appendUsageLogContentKeywordWhereCondition(conditions, args, filters.ContentKeyword)
 	if filters.StartTime != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", len(args)+1))
 		args = append(args, *filters.StartTime)
@@ -2862,9 +2845,6 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 
 func shouldUseFastUsageLogTotal(filters UsageLogFilters) bool {
 	if filters.ExactTotal {
-		return false
-	}
-	if strings.TrimSpace(filters.ContentKeyword) != "" {
 		return false
 	}
 	// 强选择过滤下记录集通常较小，保留精确总数。

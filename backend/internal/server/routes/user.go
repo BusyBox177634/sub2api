@@ -94,6 +94,14 @@ func RegisterUserRoutes(
 			usage.POST("/dashboard/api-keys-usage", h.Usage.DashboardAPIKeysUsage)
 		}
 
+		// 用量简报
+		usageBrief := authenticated.Group("/usage-brief")
+		{
+			usageBrief.GET("/reports", h.UsageBrief.ListReports)
+			usageBrief.GET("/reports/:id", h.UsageBrief.GetReport)
+			usageBrief.GET("/period", h.UsageBrief.GetPeriod)
+		}
+
 		// 公告（用户可见）
 		announcements := authenticated.Group("/announcements")
 		{

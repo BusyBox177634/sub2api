@@ -25,6 +25,7 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
+  let publicSettingsPromise: Promise<PublicSettings | null> | null = null
   const siteName = ref<string>('Sub2API')
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
@@ -357,6 +358,7 @@ export const useAppStore = defineStore('app', () => {
         channel_monitor_enabled: true,
         channel_monitor_default_interval_seconds: 60,
         available_channels_enabled: false,
+        usage_brief_enabled: false,
         risk_control_enabled: false,
         service_quota_enabled: false,
         affiliate_enabled: false,
@@ -365,20 +367,24 @@ export const useAppStore = defineStore('app', () => {
     }
 
     // Prevent duplicate requests
-    if (publicSettingsLoading.value) {
-      return null
+    if (publicSettingsLoading.value && publicSettingsPromise) {
+      return publicSettingsPromise
     }
 
     publicSettingsLoading.value = true
-    try {
+    publicSettingsPromise = (async () => {
       const data = await fetchPublicSettingsAPI()
       applySettings(data)
       return data
+    })()
+    try {
+      return await publicSettingsPromise
     } catch (error) {
       console.error('Failed to fetch public settings:', error)
       return null
     } finally {
       publicSettingsLoading.value = false
+      publicSettingsPromise = null
     }
   }
 

@@ -45,6 +45,9 @@ type OpsDashboardOverview struct {
 	// Background jobs health (heartbeats).
 	JobHeartbeats []*OpsJobHeartbeat `json:"job_heartbeats"`
 
+	// UsageDetailRetention reports the runtime status of full usage payload cleanup.
+	UsageDetailRetention *UsageLogDetailRetentionStatus `json:"usage_detail_retention"`
+
 	SuccessCount         int64 `json:"success_count"`
 	ErrorCountTotal      int64 `json:"error_count_total"`
 	BusinessLimitedCount int64 `json:"business_limited_count"`

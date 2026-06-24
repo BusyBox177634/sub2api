@@ -25,6 +25,7 @@ type AdminHandlers struct {
 	System                 *admin.SystemHandler
 	Subscription           *admin.SubscriptionHandler
 	Usage                  *admin.UsageHandler
+	UsageBrief             *admin.UsageBriefHandler
 	UserAttribute          *admin.UserAttributeHandler
 	ErrorPassthrough       *admin.ErrorPassthroughHandler
 	TLSFingerprintProfile  *admin.TLSFingerprintProfileHandler
@@ -46,6 +47,7 @@ type Handlers struct {
 	APIKey           *APIKeyHandler
 	Chat             *ChatHandler
 	Usage            *UsageHandler
+	UsageBrief       *UsageBriefHandler
 	Redeem           *RedeemHandler
 	Subscription     *SubscriptionHandler
 	Announcement     *AnnouncementHandler

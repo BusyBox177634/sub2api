@@ -84,19 +84,6 @@
           <Select v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
         </div>
 
-        <!-- Request Content Keyword Filter -->
-        <div v-if="showContentKeyword" class="w-full sm:w-auto sm:min-w-[240px]">
-          <label class="input-label">{{ t('usage.contentKeyword') }}</label>
-          <input
-            v-model.trim="filters.content_keyword"
-            type="text"
-            class="input"
-            :placeholder="t('usage.contentKeywordPlaceholder')"
-            @keyup.enter="emitChange"
-            @change="emitChange"
-          />
-        </div>
-
         <!-- Account Filter -->
         <div ref="accountSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[220px]">
           <label class="input-label">{{ t('admin.usage.account') }}</label>
@@ -195,13 +182,11 @@ interface Props {
   startDate: string
   endDate: string
   showActions?: boolean
-  showContentKeyword?: boolean
   modelOptions?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showActions: true,
-  showContentKeyword: true
+  showActions: true
 })
 const emit = defineEmits([
   'update:modelValue',

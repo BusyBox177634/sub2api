@@ -221,51 +221,6 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('$30.0000 / 1M tokens')
   })
 
-  it('passes request content keyword to usage query', async () => {
-    query.mockResolvedValue({
-      items: [],
-      total: 0,
-      pages: 0,
-    })
-    getStatsByDateRange.mockResolvedValue({
-      total_requests: 0,
-      total_tokens: 0,
-      total_cost: 0,
-      avg_duration_ms: 0,
-    })
-    list.mockResolvedValue({ items: [] })
-
-    const wrapper = mount(UsageView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          TablePageLayout: TablePageLayoutStub,
-          Pagination: true,
-          EmptyState: true,
-          Select: true,
-          DateRangePicker: true,
-          DataTable: DataTableStub,
-          Icon: true,
-          UsageLogDetailDialog: true,
-          Teleport: true,
-        },
-      },
-    })
-
-    await flushPromises()
-    query.mockClear()
-
-    const setupState = (wrapper.vm as any).$?.setupState
-    setupState.filters.content_keyword = 'needle prompt'
-    setupState.applyFilters()
-    await flushPromises()
-
-    expect(query).toHaveBeenCalledWith(
-      expect.objectContaining({ content_keyword: 'needle prompt' }),
-      expect.any(Object)
-    )
-  })
-
   it('loads usage detail when detail action is triggered', async () => {
     query.mockResolvedValue({
       items: [

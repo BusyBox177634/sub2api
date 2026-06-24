@@ -84,6 +84,8 @@ func provideCleanup(
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
+	usageDetailRetention *service.UsageLogDetailRetentionService,
+	usageBrief *service.UsageBriefService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
 	pricing *service.PricingService,
 	emailQueue *service.EmailQueueService,
@@ -157,6 +159,18 @@ func provideCleanup(
 			{"UsageCleanupService", func() error {
 				if usageCleanup != nil {
 					usageCleanup.Stop()
+				}
+				return nil
+			}},
+			{"UsageLogDetailRetentionService", func() error {
+				if usageDetailRetention != nil {
+					usageDetailRetention.Stop()
+				}
+				return nil
+			}},
+			{"UsageBriefService", func() error {
+				if usageBrief != nil {
+					usageBrief.Stop()
 				}
 				return nil
 			}},

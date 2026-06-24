@@ -126,19 +126,6 @@
               />
             </div>
 
-            <!-- Request Content Keyword Filter -->
-            <div class="min-w-[240px]">
-              <label class="input-label">{{ t('usage.contentKeyword') }}</label>
-              <input
-                v-model.trim="filters.content_keyword"
-                type="text"
-                class="input"
-                :placeholder="t('usage.contentKeywordPlaceholder')"
-                @keyup.enter="applyFilters"
-                @change="applyFilters"
-              />
-            </div>
-
             <!-- Actions -->
             <div class="ml-auto flex items-center gap-3">
               <button @click="applyFilters" :disabled="loading" class="btn btn-secondary">
@@ -928,7 +915,6 @@ const applyFilters = () => {
 const resetFilters = () => {
   filters.value = {
     api_key_id: undefined,
-    content_keyword: undefined,
     start_date: undefined,
     end_date: undefined
   }

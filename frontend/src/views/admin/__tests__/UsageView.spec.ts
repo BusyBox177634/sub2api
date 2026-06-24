@@ -390,69 +390,6 @@ describe('admin UsageView detail dialog', () => {
   })
 })
 
-describe('admin UsageView content keyword filter', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    list.mockReset()
-    getStats.mockReset()
-    getSnapshotV2.mockReset()
-    getModelStats.mockReset()
-    getDetail.mockReset()
-    showError.mockReset()
-
-    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
-    getStats.mockResolvedValue({
-      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
-      total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
-    })
-    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
-    getModelStats.mockResolvedValue({ models: [] })
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('passes request content keyword to admin usage list', async () => {
-    const wrapper = mount(UsageView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          UsageStatsCards: true,
-          UsageFilters: UsageFiltersStub,
-          UsageTable: true,
-          UsageExportProgress: true,
-          UsageCleanupDialog: true,
-          UserBalanceHistoryModal: true,
-          AuditLogModal: true,
-          Pagination: true,
-          Select: true,
-          DateRangePicker: true,
-          Icon: true,
-          TokenUsageTrend: true,
-          ModelDistributionChart: true,
-          GroupDistributionChart: true,
-          EndpointDistributionChart: true,
-        },
-      },
-    })
-
-    vi.advanceTimersByTime(120)
-    await flushPromises()
-    list.mockClear()
-
-    const vm = wrapper.vm as any
-    vm.filters.content_keyword = 'needle prompt'
-    vm.loadLogs()
-    await flushPromises()
-
-    expect(list).toHaveBeenCalledWith(
-      expect.objectContaining({ content_keyword: 'needle prompt' }),
-      expect.any(Object)
-    )
-  })
-})
-
 describe('admin UsageView errors tab filter forwarding', () => {
   beforeEach(() => {
     vi.useFakeTimers()

@@ -36,14 +36,18 @@ type UsageLogDetail struct {
 	RequestPayloadJSON  *string
 	ResponsePayloadJSON *string
 
+	CompressedRequestPayloadJSON  *string
+	CompressedResponsePayloadJSON *string
+
 	RequestPayloadBytes  *int
 	ResponsePayloadBytes *int
 
 	RequestTruncated  bool
 	ResponseTruncated bool
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	FullPayloadsCleanedAt *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type UsageLogDetailView struct {
@@ -57,8 +61,13 @@ type UsageLogDetailView struct {
 	RequestPayloadJSON  *string `json:"request_payload_json,omitempty"`
 	ResponsePayloadJSON *string `json:"response_payload_json,omitempty"`
 
+	CompressedRequestPayloadJSON  *string `json:"compressed_request_payload_json,omitempty"`
+	CompressedResponsePayloadJSON *string `json:"compressed_response_payload_json,omitempty"`
+
 	RequestTruncated  bool `json:"request_truncated"`
 	ResponseTruncated bool `json:"response_truncated"`
+
+	FullPayloadsCleanedAt *time.Time `json:"full_payloads_cleaned_at,omitempty"`
 }
 
 type UsageLogDetailResponseFormat string
@@ -80,6 +89,10 @@ type UsageLogDetailCapture struct {
 type UsageLogDetailRepository interface {
 	UpsertByRequestAndAPIKey(ctx context.Context, requestID string, apiKeyID int64, detail *UsageLogDetail) error
 	GetByUsageLogID(ctx context.Context, usageLogID int64) (*UsageLogDetail, error)
+	UpdateCompressedPayloads(ctx context.Context, usageLogID int64, compressedRequestJSON *string, compressedResponseJSON *string) error
+	CountFullPayloadCleanupPending(ctx context.Context, start, end time.Time) (int64, error)
+	ListForFullPayloadCleanup(ctx context.Context, start, end time.Time, limit int) ([]UsageLogDetail, error)
+	ClearFullPayloads(ctx context.Context, usageLogID int64, compressedRequestJSON *string, compressedResponseJSON *string, cleanedAt time.Time) error
 }
 
 var ErrUsageLogDetailUsageTargetNotReady = errors.New("usage log detail target not ready")
@@ -91,14 +104,18 @@ func BuildUsageLogDetailFromCapture(capture *UsageLogDetailCapture) *UsageLogDet
 
 	requestPayloadJSON, requestTruncated, requestPayloadBytes := prepareUsageLogDetailPayload(capture.RequestBody)
 	responsePayloadJSON, responseTruncated, responsePayloadBytes := prepareUsageLogDetailResponsePayload(capture)
+	compressedRequestPayloadJSON := CompressUsageLogPayloadJSON(requestPayloadJSON, UsageLogPayloadKindRequest)
+	compressedResponsePayloadJSON := CompressUsageLogPayloadJSON(responsePayloadJSON, UsageLogPayloadKindResponse)
 
 	return &UsageLogDetail{
-		RequestPayloadJSON:   requestPayloadJSON,
-		ResponsePayloadJSON:  responsePayloadJSON,
-		RequestPayloadBytes:  requestPayloadBytes,
-		ResponsePayloadBytes: responsePayloadBytes,
-		RequestTruncated:     requestTruncated,
-		ResponseTruncated:    responseTruncated,
+		RequestPayloadJSON:            requestPayloadJSON,
+		ResponsePayloadJSON:           responsePayloadJSON,
+		CompressedRequestPayloadJSON:  compressedRequestPayloadJSON,
+		CompressedResponsePayloadJSON: compressedResponsePayloadJSON,
+		RequestPayloadBytes:           requestPayloadBytes,
+		ResponsePayloadBytes:          responsePayloadBytes,
+		RequestTruncated:              requestTruncated,
+		ResponseTruncated:             responseTruncated,
 	}
 }
 
@@ -126,11 +143,20 @@ func BuildUsageLogDetailView(
 
 	view.RequestPayloadJSON = cloneStringPtr(detail.RequestPayloadJSON)
 	view.ResponsePayloadJSON = cloneStringPtr(detail.ResponsePayloadJSON)
+	view.CompressedRequestPayloadJSON = cloneStringPtr(detail.CompressedRequestPayloadJSON)
+	view.CompressedResponsePayloadJSON = cloneStringPtr(detail.CompressedResponsePayloadJSON)
 	view.RequestTruncated = detail.RequestTruncated
 	view.ResponseTruncated = detail.ResponseTruncated
+	view.FullPayloadsCleanedAt = cloneTimePtr(detail.FullPayloadsCleanedAt)
 
-	requestPayload := strings.TrimSpace(derefString(detail.RequestPayloadJSON))
-	responsePayload := strings.TrimSpace(derefString(detail.ResponsePayloadJSON))
+	requestPayload := strings.TrimSpace(derefString(detail.CompressedRequestPayloadJSON))
+	if requestPayload == "" {
+		requestPayload = strings.TrimSpace(derefString(detail.RequestPayloadJSON))
+	}
+	responsePayload := strings.TrimSpace(derefString(detail.CompressedResponsePayloadJSON))
+	if responsePayload == "" {
+		responsePayload = strings.TrimSpace(derefString(detail.ResponsePayloadJSON))
+	}
 	if requestPayload == "" && responsePayload == "" {
 		reason := UsageLogDetailUnavailableReasonNotCaptured
 		view.Reason = &reason
@@ -306,6 +332,14 @@ func extractGeminiCandidateText(result gjson.Result) string {
 }
 
 func cloneStringPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func cloneTimePtr(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}

@@ -11,6 +11,7 @@ import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
@@ -227,6 +228,19 @@ const routes: RouteRecordRaw[] = [
       title: 'Usage Records',
       titleKey: 'usage.title',
       descriptionKey: 'usage.description'
+    }
+  },
+  {
+    path: '/usage-brief',
+    name: 'UsageBrief',
+    component: () => import('@/views/user/UsageBriefView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Usage Brief',
+      titleKey: 'usageBrief.title',
+      descriptionKey: 'usageBrief.description',
+      requiresUsageBrief: true
     }
   },
   {
@@ -587,6 +601,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/usage-brief',
+    name: 'AdminUsageBrief',
+    component: () => import('@/views/admin/UsageBriefView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Usage Brief',
+      titleKey: 'usageBrief.title',
+      descriptionKey: 'usageBrief.adminDescription',
+      requiresUsageBrief: true
+    }
+  },
+  {
     path: '/admin/affiliates',
     redirect: '/admin/affiliates/invites'
   },
@@ -730,6 +757,17 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   return false
 }
 
+async function resolveUsageBriefRouteEnabled(appStore: ReturnType<typeof useAppStore>): Promise<boolean> {
+  if (!appStore.publicSettingsLoaded) {
+    await appStore.fetchPublicSettings()
+  }
+  if (isFeatureFlagEnabled(FeatureFlags.usageBrief)) {
+    return true
+  }
+  await appStore.fetchPublicSettings(true)
+  return isFeatureFlagEnabled(FeatureFlags.usageBrief)
+}
+
 router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
@@ -837,6 +875,13 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresRiskControl) {
     const riskControlEnabled = appStore.cachedPublicSettings?.risk_control_enabled === true
     if (!riskControlEnabled) {
+      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+      return
+    }
+  }
+
+  if (to.meta.requiresUsageBrief) {
+    if (!(await resolveUsageBriefRouteEnabled(appStore))) {
       next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
       return
     }

@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -17,8 +16,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
-const maxUsageContentKeywordRunes = 200
 
 // UsageHandler handles usage-related requests
 type UsageHandler struct {
@@ -78,10 +75,6 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	// Parse additional filters
 	model := c.Query("model")
-	contentKeyword, ok := parseUsageContentKeyword(c)
-	if !ok {
-		return
-	}
 
 	var requestType *int16
 	var stream *bool
@@ -143,15 +136,14 @@ func (h *UsageHandler) List(c *gin.Context) {
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	filters := usagestats.UsageLogFilters{
-		UserID:         subject.UserID, // Always filter by current user for security
-		APIKeyID:       apiKeyID,
-		Model:          model,
-		RequestType:    requestType,
-		Stream:         stream,
-		BillingType:    billingType,
-		ContentKeyword: contentKeyword,
-		StartTime:      startTime,
-		EndTime:        endTime,
+		UserID:      subject.UserID, // Always filter by current user for security
+		APIKeyID:    apiKeyID,
+		Model:       model,
+		RequestType: requestType,
+		Stream:      stream,
+		BillingType: billingType,
+		StartTime:   startTime,
+		EndTime:     endTime,
 	}
 
 	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
@@ -165,18 +157,6 @@ func (h *UsageHandler) List(c *gin.Context) {
 		out = append(out, *dto.UsageLogFromService(&records[i]))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
-}
-
-func parseUsageContentKeyword(c *gin.Context) (string, bool) {
-	keyword := strings.TrimSpace(c.Query("content_keyword"))
-	if keyword == "" {
-		return "", true
-	}
-	if utf8.RuneCountInString(keyword) > maxUsageContentKeywordRunes {
-		response.BadRequest(c, "content_keyword must be 200 characters or fewer")
-		return "", false
-	}
-	return keyword, true
 }
 
 // ListErrors handles listing the current user's failed requests (redacted).

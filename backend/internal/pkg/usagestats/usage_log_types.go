@@ -270,10 +270,8 @@ type UsageLogFilters struct {
 	Stream      *bool
 	BillingType *int8
 	BillingMode string
-	// ContentKeyword filters usage logs by request payload content in usage_log_details.
-	ContentKeyword string
-	StartTime      *time.Time
-	EndTime        *time.Time
+	StartTime   *time.Time
+	EndTime     *time.Time
 	// ExactTotal requests exact COUNT(*) for pagination. Default false for fast large-table paging.
 	ExactTotal bool
 }

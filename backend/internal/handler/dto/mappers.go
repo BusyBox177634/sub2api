@@ -667,13 +667,16 @@ func UsageLogDetailFromService(detail *service.UsageLogDetailView) *UsageLogDeta
 	}
 
 	response := &UsageLogDetailResponse{
-		Available:           detail.Available,
-		RequestMessages:     make([]UsageLogMessage, 0, len(detail.RequestMessages)),
-		ResponseMessages:    make([]UsageLogMessage, 0, len(detail.ResponseMessages)),
-		RequestPayloadJSON:  cloneString(detail.RequestPayloadJSON),
-		ResponsePayloadJSON: cloneString(detail.ResponsePayloadJSON),
-		RequestTruncated:    detail.RequestTruncated,
-		ResponseTruncated:   detail.ResponseTruncated,
+		Available:                     detail.Available,
+		RequestMessages:               make([]UsageLogMessage, 0, len(detail.RequestMessages)),
+		ResponseMessages:              make([]UsageLogMessage, 0, len(detail.ResponseMessages)),
+		RequestPayloadJSON:            cloneString(detail.RequestPayloadJSON),
+		ResponsePayloadJSON:           cloneString(detail.ResponsePayloadJSON),
+		CompressedRequestPayloadJSON:  cloneString(detail.CompressedRequestPayloadJSON),
+		CompressedResponsePayloadJSON: cloneString(detail.CompressedResponsePayloadJSON),
+		RequestTruncated:              detail.RequestTruncated,
+		ResponseTruncated:             detail.ResponseTruncated,
+		FullPayloadsCleanedAt:         detail.FullPayloadsCleanedAt,
 	}
 	if detail.Reason != nil {
 		value := string(*detail.Reason)

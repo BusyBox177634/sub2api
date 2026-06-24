@@ -63,6 +63,26 @@
         >
           {{ t('usage.responseJson') }}
         </button>
+        <button
+          type="button"
+          class="rounded-full px-4 py-2 text-sm font-medium transition"
+          :class="activeTab === 'compressedRequest'
+            ? 'bg-primary-600 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-800 dark:text-gray-200 dark:hover:bg-dark-700'"
+          @click="activeTab = 'compressedRequest'"
+        >
+          {{ t('usage.compressedRequestJson') }}
+        </button>
+        <button
+          type="button"
+          class="rounded-full px-4 py-2 text-sm font-medium transition"
+          :class="activeTab === 'compressedResponse'
+            ? 'bg-primary-600 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-800 dark:text-gray-200 dark:hover:bg-dark-700'"
+          @click="activeTab = 'compressedResponse'"
+        >
+          {{ t('usage.compressedResponseJson') }}
+        </button>
       </div>
 
       <div v-if="loading" class="flex items-center justify-center py-14 text-sm text-gray-500 dark:text-gray-400">
@@ -123,7 +143,7 @@
           </button>
         </div>
         <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900/60">
-          <pre class="max-h-[460px] overflow-auto whitespace-pre-wrap break-words text-xs text-gray-800 dark:text-gray-100">{{ prettyJson(activeJson) }}</pre>
+          <pre class="max-h-[460px] overflow-auto whitespace-pre-wrap break-words text-xs text-gray-800 dark:text-gray-100">{{ jsonPanelText }}</pre>
         </div>
       </div>
     </div>
@@ -158,7 +178,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
-const activeTab = ref<'messages' | 'request' | 'response'>('messages')
+const activeTab = ref<'messages' | 'request' | 'response' | 'compressedRequest' | 'compressedResponse'>('messages')
 
 watch(() => props.show, (show) => {
   if (show) {
@@ -181,7 +201,17 @@ const requestTypeLabel = computed(() => {
 const activeJson = computed(() => {
   if (!props.detail) return ''
   if (activeTab.value === 'request') return props.detail.request_payload_json || ''
+  if (activeTab.value === 'compressedRequest') return props.detail.compressed_request_payload_json || ''
+  if (activeTab.value === 'compressedResponse') return props.detail.compressed_response_payload_json || ''
   return props.detail.response_payload_json || ''
+})
+
+const jsonPanelText = computed(() => {
+  if (activeJson.value) return prettyJson(activeJson.value)
+  if ((activeTab.value === 'request' || activeTab.value === 'response') && props.detail?.full_payloads_cleaned_at) {
+    return t('usage.fullJsonCleaned')
+  }
+  return '-'
 })
 
 const unavailableMessage = computed(() => {

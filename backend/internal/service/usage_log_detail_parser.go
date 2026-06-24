@@ -197,6 +197,9 @@ func extractContentText(value gjson.Result) string {
 		})
 		return strings.TrimSpace(strings.Join(parts, "\n\n"))
 	case value.IsObject():
+		if text := strings.TrimSpace(value.Get("content").String()); text != "" {
+			return text
+		}
 		if text := strings.TrimSpace(value.Get("text").String()); text != "" {
 			return text
 		}
@@ -207,9 +210,6 @@ func extractContentText(value gjson.Result) string {
 			return text
 		}
 		if text := strings.TrimSpace(value.Get("arguments").Raw); text != "" && text != "null" {
-			return text
-		}
-		if text := extractContentText(value.Get("content")); text != "" {
 			return text
 		}
 		if text := extractContentText(value.Get("parts")); text != "" {

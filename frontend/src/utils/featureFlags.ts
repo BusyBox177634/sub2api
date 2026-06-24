@@ -114,6 +114,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Risk Control',
   }),
+  usageBrief: defineFlag({
+    key: 'usage_brief_enabled',
+    mode: 'opt-in',
+    label: 'Usage Brief',
+  }),
   affiliate: defineFlag({
     key: 'affiliate_enabled',
     mode: 'opt-in',

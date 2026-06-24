@@ -65,9 +65,19 @@ func (s *OpsService) GetDashboardOverview(ctx context.Context, filter *OpsDashbo
 		log.Printf("[Ops] ListJobHeartbeats failed: %v", err)
 	}
 
+	s.AttachUsageDetailRetentionStatus(overview)
+
 	overview.HealthScore = computeDashboardHealthScore(time.Now().UTC(), overview)
 
 	return overview, nil
+}
+
+func (s *OpsService) AttachUsageDetailRetentionStatus(overview *OpsDashboardOverview) {
+	if s == nil || s.usageDetailRetention == nil || overview == nil {
+		return
+	}
+	status := s.usageDetailRetention.Snapshot()
+	overview.UsageDetailRetention = &status
 }
 
 func (s *OpsService) resolveOpsQueryMode(ctx context.Context, requested OpsQueryMode) OpsQueryMode {

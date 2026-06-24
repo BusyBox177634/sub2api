@@ -924,6 +924,48 @@ function openJobsDetails() {
   showJobsDetails.value = true
 }
 
+const usageDetailRetention = computed(() => overview.value?.usage_detail_retention ?? null)
+
+const usageDetailRetentionStatusLabel = computed(() => {
+  const status = usageDetailRetention.value
+  if (!status) return t('admin.ops.noData')
+  if (!status.enabled || status.phase === 'stopped') return t('admin.ops.retentionStopped')
+  if (status.running) return t('admin.ops.retentionRunning')
+  if (status.remaining_pending > 0) return t('admin.ops.retentionWaiting')
+  return t('admin.ops.retentionIdle')
+})
+
+const usageDetailRetentionStatusClass = computed(() => {
+  const status = usageDetailRetention.value
+  if (!status) return 'text-gray-900 dark:text-white'
+  if (status.failed > 0 || status.last_error) return 'text-rose-600 dark:text-rose-400'
+  if (status.running) return 'text-blue-600 dark:text-blue-400'
+  if (status.remaining_pending > 0) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+})
+
+const usageDetailRetentionProgress = computed(() => {
+  const v = usageDetailRetention.value?.progress_percent
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 0
+  return Math.max(0, Math.min(100, v))
+})
+
+function formatRetentionRange(start?: string | null, end?: string | null): string {
+  if (!start || !end) return '-'
+  return `${formatDateTimeShort(start)} - ${formatDateTimeShort(end)}`
+}
+
+function formatDateTimeShort(ts?: string | null): string {
+  if (!ts) return '-'
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return '-'
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hour = String(d.getHours()).padStart(2, '0')
+  const minute = String(d.getMinutes()).padStart(2, '0')
+  return `${month}-${day} ${hour}:${minute}`
+}
+
 function handleToolbarRefresh() {
   loadRealtimeTrafficSummary()
   emit('refresh')
@@ -1505,7 +1547,7 @@ function handleToolbarRefresh() {
 
     <!-- Integrated: System health (cards) -->
     <div v-if="overview" class="mt-2 border-t border-gray-100 pt-4 dark:border-dark-700">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-8">
         <!-- CPU -->
         <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
           <div class="flex items-center gap-1">
@@ -1640,6 +1682,53 @@ function handleToolbarRefresh() {
           <div v-if="!props.fullscreen" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
             {{ t('common.total') }} <span class="font-mono">{{ jobHeartbeats.length }}</span>
             · {{ t('common.warning') }} <span class="font-mono">{{ jobsWarnCount }}</span>
+          </div>
+        </div>
+
+        <!-- Usage Detail Retention -->
+        <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
+          <div class="flex items-center gap-1">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.usageDetailRetention') }}</div>
+            <HelpTooltip v-if="!props.fullscreen" :content="t('admin.ops.tooltips.usageDetailRetention')" />
+          </div>
+          <div class="mt-1 text-lg font-black" :class="usageDetailRetentionStatusClass">
+            {{ usageDetailRetentionStatusLabel }}
+          </div>
+          <div v-if="!props.fullscreen" class="mt-2 space-y-1 text-[10px] text-gray-500 dark:text-gray-400">
+            <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
+              <div
+                class="h-full rounded-full bg-blue-500 transition-all"
+                :style="{ width: `${usageDetailRetentionProgress}%` }"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span>{{ usageDetailRetentionProgress.toFixed(1) }}%</span>
+              <span>{{ t('admin.ops.remaining') }} <span class="font-mono">{{ formatNumber(usageDetailRetention?.remaining_pending ?? 0) }}</span></span>
+            </div>
+            <div>
+              {{ t('admin.ops.processed') }} <span class="font-mono">{{ formatNumber(usageDetailRetention?.processed ?? 0) }}</span>
+              / <span class="font-mono">{{ formatNumber(usageDetailRetention?.total_pending_at_start ?? 0) }}</span>
+            </div>
+            <div>
+              {{ t('admin.ops.cleaned') }} <span class="font-mono">{{ formatNumber(usageDetailRetention?.cleaned ?? 0) }}</span>
+              · {{ t('admin.ops.compressed') }}
+              <span class="font-mono">{{ formatNumber((usageDetailRetention?.compressed_request ?? 0) + (usageDetailRetention?.compressed_response ?? 0)) }}</span>
+            </div>
+            <div>
+              {{ t('admin.ops.fallback') }} <span class="font-mono">{{ formatNumber(usageDetailRetention?.fallback_empty ?? 0) }}</span>
+              · {{ t('admin.ops.skipped') }} <span class="font-mono">{{ formatNumber(usageDetailRetention?.skipped ?? 0) }}</span>
+              · {{ t('admin.ops.failed') }} <span class="font-mono">{{ formatNumber(usageDetailRetention?.failed ?? 0) }}</span>
+            </div>
+            <div class="truncate">
+              {{ t('admin.ops.range') }} {{ formatRetentionRange(usageDetailRetention?.window_start, usageDetailRetention?.window_end) }}
+            </div>
+            <div class="truncate">
+              {{ t('admin.ops.startedAt') }} {{ formatDateTimeShort(usageDetailRetention?.started_at) }}
+              · {{ t('admin.ops.finishedAt') }} {{ formatDateTimeShort(usageDetailRetention?.finished_at) }}
+            </div>
+            <div class="truncate">
+              {{ t('admin.ops.nextRun') }} {{ formatDateTimeShort(usageDetailRetention?.next_run_at) }}
+            </div>
           </div>
         </div>
       </div>

@@ -989,11 +989,32 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 		return
 	}
 	dst.ID = src.ID
+	dst.Email = src.Email
+	dst.Username = src.Username
+	dst.Notes = src.Notes
+	dst.PasswordHash = src.PasswordHash
+	dst.Role = src.Role
+	dst.Balance = src.Balance
+	dst.Concurrency = src.Concurrency
+	dst.Status = src.Status
 	dst.SignupSource = src.SignupSource
+	dst.TotpSecretEncrypted = src.TotpSecretEncrypted
+	dst.TotpEnabled = src.TotpEnabled
+	dst.TotpEnabledAt = src.TotpEnabledAt
+	dst.BalanceNotifyEnabled = src.BalanceNotifyEnabled
+	dst.BalanceNotifyThresholdType = src.BalanceNotifyThresholdType
+	dst.BalanceNotifyThreshold = src.BalanceNotifyThreshold
+	dst.BalanceNotifyExtraEmails = nil
+	if src.BalanceNotifyExtraEmails != "" && src.BalanceNotifyExtraEmails != "[]" {
+		dst.BalanceNotifyExtraEmails = service.ParseNotifyEmails(src.BalanceNotifyExtraEmails)
+	}
+	dst.TotalRecharged = src.TotalRecharged
+	dst.RPMLimit = src.RpmLimit
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+	dst.DeletedAt = src.DeletedAt
 }
 
 func userSignupSourceOrDefault(signupSource string) string {

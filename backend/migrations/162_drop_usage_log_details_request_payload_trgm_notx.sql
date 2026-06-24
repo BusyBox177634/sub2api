@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_usage_log_details_request_payload_trgm;

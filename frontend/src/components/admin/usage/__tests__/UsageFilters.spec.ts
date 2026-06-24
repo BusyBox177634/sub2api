@@ -11,8 +11,6 @@ const messages: Record<string, string> = {
   'usage.apiKeyFilter': 'API Key',
   'admin.usage.searchApiKeyPlaceholder': 'Search API key...',
   'usage.model': 'Model',
-  'usage.contentKeyword': 'Request content keyword',
-  'usage.contentKeywordPlaceholder': 'Search request JSON content...',
   'admin.usage.allModels': 'All Models',
   'admin.usage.account': 'Account',
   'admin.usage.searchAccountPlaceholder': 'Search account...',
@@ -193,30 +191,5 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
 
     const opts = (wrapper.vm as any).modelOptions as Array<{ value: string | null; label: string }>
     expect(opts.map((o) => o.value)).toEqual([null, 'claude-3', 'gpt-4o'])
-  })
-})
-
-describe('UsageFilters — content keyword visibility', () => {
-  it('shows the request content keyword filter by default', () => {
-    const wrapper = mountFilters()
-
-    expect(wrapper.text()).toContain('Request content keyword')
-  })
-
-  it('can hide the request content keyword filter for cleanup-only contexts', () => {
-    const wrapper = mount(UsageFilters, {
-      props: {
-        modelValue: defaultFilters(),
-        exporting: false,
-        startDate: '2026-05-01',
-        endDate: '2026-05-28',
-        showActions: false,
-        showContentKeyword: false,
-        modelOptions: [],
-      },
-      global: { stubs: { Select: true, Teleport: true } },
-    })
-
-    expect(wrapper.text()).not.toContain('Request content keyword')
   })
 })

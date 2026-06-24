@@ -341,37 +341,6 @@ func TestUsageLogRepositoryListWithFiltersRequestTypePriority(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUsageLogRepositoryListWithFiltersContentKeywordUsesRequestPayloadOnly(t *testing.T) {
-	db, mock := newSQLMock(t)
-	repo := &usageLogRepository{sql: db}
-
-	filters := usagestats.UsageLogFilters{
-		UserID:         42,
-		ContentKeyword: "secret prompt",
-	}
-
-	countPattern := `SELECT COUNT\(\*\) FROM usage_logs WHERE user_id = \$1 AND\s+EXISTS \(\s+SELECT 1\s+FROM usage_log_details d\s+WHERE d\.usage_log_id = usage_logs\.id\s+AND d\.request_payload_json ILIKE \$2\s+\)`
-	listPattern := `SELECT .* FROM usage_logs WHERE user_id = \$1 AND\s+EXISTS \(\s+SELECT 1\s+FROM usage_log_details d\s+WHERE d\.usage_log_id = usage_logs\.id\s+AND d\.request_payload_json ILIKE \$2\s+\) ORDER BY id DESC LIMIT \$3 OFFSET \$4`
-
-	mock.ExpectQuery(countPattern).
-		WithArgs(int64(42), "%secret prompt%").
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
-	mock.ExpectQuery(listPattern).
-		WithArgs(int64(42), "%secret prompt%", 20, 0).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-
-	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, filters)
-	require.NoError(t, err)
-	require.Empty(t, logs)
-	require.NotNil(t, page)
-	require.Equal(t, int64(0), page.Total)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestUsageLogRepositoryContentKeywordDisablesFastTotal(t *testing.T) {
-	require.False(t, shouldUseFastUsageLogTotal(usagestats.UsageLogFilters{ContentKeyword: "prompt"}))
-}
-
 func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}

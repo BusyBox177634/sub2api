@@ -77,6 +77,9 @@ func RegisterAdminRoutes(
 		// 使用记录管理
 		registerUsageRoutes(admin, h)
 
+		// 用量简报
+		registerUsageBriefRoutes(admin, h)
+
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
 
@@ -103,6 +106,37 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+	}
+}
+
+func registerUsageBriefRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	brief := admin.Group("/usage-brief")
+	{
+		brief.GET("/settings", h.Admin.UsageBrief.GetSettings)
+		brief.PUT("/settings", h.Admin.UsageBrief.UpdateSettings)
+		brief.GET("/report-groups", h.Admin.UsageBrief.ListReportGroups)
+		brief.DELETE("/report-groups", h.Admin.UsageBrief.DeleteReportGroup)
+		brief.GET("/reports", h.Admin.UsageBrief.ListReports)
+		brief.GET("/reports/:id", h.Admin.UsageBrief.GetReport)
+		brief.PUT("/reports/:id", h.Admin.UsageBrief.UpdateReport)
+		brief.DELETE("/reports/:id", h.Admin.UsageBrief.DeleteReport)
+		brief.GET("/batches", h.Admin.UsageBrief.ListBatches)
+		brief.GET("/batches/:id/jobs", h.Admin.UsageBrief.ListBatchJobs)
+		brief.POST("/batches/:id/pause", h.Admin.UsageBrief.PauseBatch)
+		brief.POST("/batches/:id/resume", h.Admin.UsageBrief.ResumeBatch)
+		brief.POST("/batches/:id/cancel", h.Admin.UsageBrief.CancelBatch)
+		brief.POST("/batches/:id/reset", h.Admin.UsageBrief.ResetBatch)
+		brief.POST("/batches/:id/rerun", h.Admin.UsageBrief.RerunBatch)
+		brief.DELETE("/batches/:id", h.Admin.UsageBrief.DeleteBatch)
+		brief.GET("/jobs", h.Admin.UsageBrief.ListJobs)
+		brief.POST("/jobs/production", h.Admin.UsageBrief.TriggerProduction)
+		brief.POST("/jobs/test", h.Admin.UsageBrief.CreateTestJob)
+		brief.POST("/jobs/:id/cancel", h.Admin.UsageBrief.CancelJob)
+		brief.POST("/jobs/:id/reset", h.Admin.UsageBrief.ResetJob)
+		brief.POST("/jobs/:id/rerun", h.Admin.UsageBrief.RerunJob)
+		brief.GET("/jobs/:id/chunks", h.Admin.UsageBrief.ListJobChunks)
+		brief.GET("/jobs/:id/conversations", h.Admin.UsageBrief.ListJobConversations)
+		brief.DELETE("/jobs/:id", h.Admin.UsageBrief.DeleteJob)
 	}
 }
 

@@ -375,10 +375,8 @@ const loadStats = async (force = false) => {
   try {
     const requestType = filters.value.request_type
     const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
-    const statsFilters = { ...filters.value }
-    delete statsFilters.content_keyword
     const s = await adminAPI.usage.getStats({
-      ...statsFilters,
+      ...filters.value,
       stream: legacyStream === null ? undefined : legacyStream,
       ...(force ? { nocache: 1 } : {}),
     })

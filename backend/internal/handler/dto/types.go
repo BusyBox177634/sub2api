@@ -539,8 +539,13 @@ type UsageLogDetailResponse struct {
 	RequestPayloadJSON  *string `json:"request_payload_json,omitempty"`
 	ResponsePayloadJSON *string `json:"response_payload_json,omitempty"`
 
+	CompressedRequestPayloadJSON  *string `json:"compressed_request_payload_json,omitempty"`
+	CompressedResponsePayloadJSON *string `json:"compressed_response_payload_json,omitempty"`
+
 	RequestTruncated  bool `json:"request_truncated"`
 	ResponseTruncated bool `json:"response_truncated"`
+
+	FullPayloadsCleanedAt *time.Time `json:"full_payloads_cleaned_at,omitempty"`
 }
 
 type UsageCleanupFilters struct {

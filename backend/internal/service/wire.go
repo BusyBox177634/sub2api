@@ -169,6 +169,20 @@ func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *Timing
 	return svc
 }
 
+// ProvideUsageLogDetailRetentionService creates and starts the usage detail payload retention worker.
+func ProvideUsageLogDetailRetentionService(repo UsageLogDetailRepository, cfg *config.Config) *UsageLogDetailRetentionService {
+	svc := NewUsageLogDetailRetentionService(repo, cfg)
+	svc.Start()
+	return svc
+}
+
+// ProvideUsageBriefService creates and starts the AI usage brief worker.
+func ProvideUsageBriefService(repo UsageBriefRepository, settingRepo SettingRepository, encryptor SecretEncryptor) *UsageBriefService {
+	svc := NewUsageBriefService(repo, settingRepo, encryptor)
+	svc.Start()
+	return svc
+}
+
 // ProvideAccountExpiryService creates and starts AccountExpiryService.
 func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpiryService {
 	svc := NewAccountExpiryService(accountRepo, time.Minute)
@@ -445,6 +459,7 @@ func ProvideOpsService(
 	geminiCompatService *GeminiMessagesCompatService,
 	antigravityGatewayService *AntigravityGatewayService,
 	systemLogSink *OpsSystemLogSink,
+	usageDetailRetention *UsageLogDetailRetentionService,
 	settingService *SettingService,
 ) *OpsService {
 	svc := NewOpsService(
@@ -460,6 +475,7 @@ func ProvideOpsService(
 		antigravityGatewayService,
 		systemLogSink,
 	)
+	svc.SetUsageLogDetailRetentionStatusProvider(usageDetailRetention)
 	if settingService != nil {
 		svc.SetOpenAIQuotaAutoPauseSettingsSink(settingService.SetOpenAIQuotaAutoPauseSettings)
 		// Optional warm-up so the first scheduled request after process start observes
@@ -583,6 +599,8 @@ var ProviderSet = wire.NewSet(
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
 	ProvideUsageCleanupService,
+	ProvideUsageLogDetailRetentionService,
+	ProvideUsageBriefService,
 	ProvideDeferredService,
 	NewAntigravityQuotaFetcher,
 	NewUserAttributeService,

@@ -91,20 +91,7 @@ func TestUserUsageListInvalidStream(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-func TestUserUsageListContentKeyword(t *testing.T) {
-	repo := &userUsageRepoCapture{}
-	router := newUserUsageRequestTypeTestRouter(repo)
-
-	req := httptest.NewRequest(http.MethodGet, "/usage?content_keyword=search%20me", nil)
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, int64(42), repo.listFilters.UserID)
-	require.Equal(t, "search me", repo.listFilters.ContentKeyword)
-}
-
-func TestUserUsageListContentKeywordTooLong(t *testing.T) {
+func TestUserUsageListContentKeywordIgnored(t *testing.T) {
 	repo := &userUsageRepoCapture{}
 	router := newUserUsageRequestTypeTestRouter(repo)
 
@@ -112,7 +99,8 @@ func TestUserUsageListContentKeywordTooLong(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(42), repo.listFilters.UserID)
 }
 
 func TestUserUsageDetailOwnRecord(t *testing.T) {

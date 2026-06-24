@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -19,8 +18,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
-const maxUsageContentKeywordRunes = 200
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
@@ -114,10 +111,6 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	model := c.Query("model")
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
-	contentKeyword, ok := parseUsageContentKeyword(c)
-	if !ok {
-		return
-	}
 
 	var requestType *int16
 	var stream *bool
@@ -179,19 +172,18 @@ func (h *UsageHandler) List(c *gin.Context) {
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	filters := usagestats.UsageLogFilters{
-		UserID:         userID,
-		APIKeyID:       apiKeyID,
-		AccountID:      accountID,
-		GroupID:        groupID,
-		Model:          model,
-		RequestType:    requestType,
-		Stream:         stream,
-		BillingType:    billingType,
-		BillingMode:    billingMode,
-		ContentKeyword: contentKeyword,
-		StartTime:      startTime,
-		EndTime:        endTime,
-		ExactTotal:     exactTotal,
+		UserID:      userID,
+		APIKeyID:    apiKeyID,
+		AccountID:   accountID,
+		GroupID:     groupID,
+		Model:       model,
+		RequestType: requestType,
+		Stream:      stream,
+		BillingType: billingType,
+		BillingMode: billingMode,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		ExactTotal:  exactTotal,
 	}
 
 	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
@@ -205,18 +197,6 @@ func (h *UsageHandler) List(c *gin.Context) {
 		out = append(out, *dto.UsageLogFromServiceAdmin(&records[i]))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
-}
-
-func parseUsageContentKeyword(c *gin.Context) (string, bool) {
-	keyword := strings.TrimSpace(c.Query("content_keyword"))
-	if keyword == "" {
-		return "", true
-	}
-	if utf8.RuneCountInString(keyword) > maxUsageContentKeywordRunes {
-		response.BadRequest(c, "content_keyword must be 200 characters or fewer")
-		return "", false
-	}
-	return keyword, true
 }
 
 // GetDetail handles getting a single usage record detail (admin only).
