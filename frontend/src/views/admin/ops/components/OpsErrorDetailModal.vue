@@ -218,7 +218,8 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
-import { opsAPI, type OpsErrorDetail } from '@/api/admin/ops'
+import { opsAPI, type OpsErrorDetail, type OpsErrorListQueryParams } from '@/api/admin/ops'
+import type { PaginatedResponse } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import { resolvePrimaryResponseBody, resolveUpstreamPayload } from '../utils/errorDetailResponse'
 
@@ -226,6 +227,17 @@ interface Props {
   show: boolean
   errorId: number | null
   errorType?: 'request' | 'upstream'
+  api?: OpsErrorDetailApi
+}
+
+interface OpsErrorDetailApi {
+  getRequestErrorDetail(id: number): Promise<OpsErrorDetail>
+  getUpstreamErrorDetail(id: number): Promise<OpsErrorDetail>
+  listRequestErrorUpstreamErrors(
+    id: number,
+    params?: OpsErrorListQueryParams,
+    options?: { include_detail?: boolean }
+  ): Promise<PaginatedResponse<OpsErrorDetail>>
 }
 
 interface Emits {
@@ -240,6 +252,7 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const detail = ref<OpsErrorDetail | null>(null)
+const detailAPI = computed<OpsErrorDetailApi>(() => props.api || opsAPI)
 
 const showUpstreamList = computed(() => props.errorType === 'request')
 
@@ -314,7 +327,7 @@ function toggleUpstreamDetail(id: number) {
 async function fetchCorrelatedUpstreamErrors(requestErrorId: number) {
   correlatedUpstreamLoading.value = true
   try {
-    const res = await opsAPI.listRequestErrorUpstreamErrors(
+    const res = await detailAPI.value.listRequestErrorUpstreamErrors(
       requestErrorId,
       { page: 1, page_size: 100, view: 'all' },
       { include_detail: true }
@@ -345,7 +358,9 @@ async function fetchDetail(id: number) {
   loading.value = true
   try {
     const kind = props.errorType || (detail.value?.phase === 'upstream' ? 'upstream' : 'request')
-    const d = kind === 'upstream' ? await opsAPI.getUpstreamErrorDetail(id) : await opsAPI.getRequestErrorDetail(id)
+    const d = kind === 'upstream'
+      ? await detailAPI.value.getUpstreamErrorDetail(id)
+      : await detailAPI.value.getRequestErrorDetail(id)
     detail.value = d
   } catch (err: any) {
     detail.value = null

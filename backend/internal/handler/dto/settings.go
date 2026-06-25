@@ -247,6 +247,10 @@ type SystemSettings struct {
 	// Usage Brief feature switch
 	UsageBriefEnabled bool `json:"usage_brief_enabled"`
 
+	// Quick ops monitor read-only public entry
+	QuickOpsMonitorEnabled bool   `json:"quick_ops_monitor_enabled"`
+	QuickOpsMonitorSuffix  string `json:"quick_ops_monitor_suffix"`
+
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 

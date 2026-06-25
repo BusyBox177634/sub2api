@@ -155,6 +155,10 @@ type SystemSettings struct {
 	DefaultUserRPMLimit          int
 	DefaultSubscriptions         []DefaultSubscriptionSetting
 
+	// Quick ops monitor read-only public entry.
+	QuickOpsMonitorEnabled bool
+	QuickOpsMonitorSuffix  string
+
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
 	FallbackModelAnthropic   string `json:"fallback_model_anthropic"`

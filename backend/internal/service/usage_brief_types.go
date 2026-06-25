@@ -256,12 +256,13 @@ type UsageBriefReportFilter struct {
 	StartDate *time.Time
 	EndDate   *time.Time
 
-	PeriodType string
-	SourceKind string
-	Status     string
-	Search     string
-	Page       int
-	PageSize   int
+	PeriodType  string
+	SourceKind  string
+	Status      string
+	Search      string
+	SearchScope string
+	Page        int
+	PageSize    int
 }
 
 type UsageBriefReportGroupFilter struct {

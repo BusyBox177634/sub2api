@@ -5534,6 +5534,53 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.quickOpsMonitor.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.quickOpsMonitor.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.quickOpsMonitor.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.quickOpsMonitor.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.quick_ops_monitor_enabled" />
+            </div>
+
+            <div>
+              <label class="input-label">
+                {{ t('admin.settings.features.quickOpsMonitor.suffix') }}
+                <span v-if="form.quick_ops_monitor_enabled" class="text-red-500">*</span>
+              </label>
+              <input
+                v-model.trim="form.quick_ops_monitor_suffix"
+                type="text"
+                maxlength="64"
+                class="input"
+                :placeholder="t('admin.settings.features.quickOpsMonitor.suffixPlaceholder')"
+              />
+              <p class="mt-1 text-xs text-gray-400">
+                {{ t('admin.settings.features.quickOpsMonitor.suffixHint') }}
+              </p>
+              <p
+                v-if="form.quick_ops_monitor_suffix"
+                class="mt-2 text-xs text-primary-600 dark:text-primary-300"
+              >
+                {{ `${currentOrigin}/${form.quick_ops_monitor_suffix}` }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.riskControl.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7885,6 +7932,9 @@ const form = reactive<SettingsForm>({
   available_channels_enabled: false,
   // Usage Brief feature switch
   usage_brief_enabled: false,
+  // Quick Ops Monitor feature switch
+  quick_ops_monitor_enabled: false,
+  quick_ops_monitor_suffix: "",
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
   // Allow user view error requests
@@ -9054,6 +9104,9 @@ async function saveSettings() {
       available_channels_enabled: form.available_channels_enabled,
       // Usage Brief feature switch
       usage_brief_enabled: form.usage_brief_enabled,
+      // Quick Ops Monitor feature switch
+      quick_ops_monitor_enabled: form.quick_ops_monitor_enabled,
+      quick_ops_monitor_suffix: form.quick_ops_monitor_suffix,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,

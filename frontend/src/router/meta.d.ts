@@ -62,6 +62,12 @@ declare module 'vue-router' {
     requiresUsageBrief?: boolean
 
     /**
+     * 是否为无需登录的运维快捷监控入口
+     * @default false
+     */
+    quickMonitor?: boolean
+
+    /**
      * i18n key for the page title
      */
     titleKey?: string

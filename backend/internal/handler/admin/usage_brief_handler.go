@@ -46,12 +46,13 @@ func (h *UsageBriefHandler) UpdateSettings(c *gin.Context) {
 func (h *UsageBriefHandler) ListReports(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	filter := service.UsageBriefReportFilter{
-		PeriodType: strings.TrimSpace(c.Query("period_type")),
-		SourceKind: strings.TrimSpace(c.Query("source_kind")),
-		Status:     strings.TrimSpace(c.Query("status")),
-		Search:     strings.TrimSpace(c.Query("search")),
-		Page:       page,
-		PageSize:   pageSize,
+		PeriodType:  strings.TrimSpace(c.Query("period_type")),
+		SourceKind:  strings.TrimSpace(c.Query("source_kind")),
+		Status:      strings.TrimSpace(c.Query("status")),
+		Search:      strings.TrimSpace(c.Query("search")),
+		SearchScope: strings.TrimSpace(c.Query("search_scope")),
+		Page:        page,
+		PageSize:    pageSize,
 	}
 	if raw := strings.TrimSpace(c.Query("user_id")); raw != "" {
 		userID, err := strconv.ParseInt(raw, 10, 64)
@@ -107,10 +108,13 @@ func (h *UsageBriefHandler) DeleteReportGroup(c *gin.Context) {
 func (h *UsageBriefHandler) usageBriefReportGroupFilter(c *gin.Context, page, pageSize int) (service.UsageBriefReportGroupFilter, bool) {
 	filter := service.UsageBriefReportGroupFilter{
 		UsageBriefReportFilter: service.UsageBriefReportFilter{
-			PeriodType: strings.TrimSpace(c.Query("period_type")),
-			Status:     strings.TrimSpace(c.Query("status")),
-			Page:       page,
-			PageSize:   pageSize,
+			PeriodType:  strings.TrimSpace(c.Query("period_type")),
+			SourceKind:  strings.TrimSpace(c.Query("source_kind")),
+			Status:      strings.TrimSpace(c.Query("status")),
+			Search:      strings.TrimSpace(c.Query("search")),
+			SearchScope: strings.TrimSpace(c.Query("search_scope")),
+			Page:        page,
+			PageSize:    pageSize,
 		},
 		GroupBy: strings.TrimSpace(c.Query("group_by")),
 	}

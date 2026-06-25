@@ -1971,6 +1971,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	// Usage brief feature switch
 	updates[SettingKeyUsageBriefEnabled] = strconv.FormatBool(settings.UsageBriefEnabled)
 
+	// Quick ops monitor read-only entry.
+	updates[SettingKeyQuickOpsMonitorEnabled] = strconv.FormatBool(settings.QuickOpsMonitorEnabled)
+	updates[SettingKeyQuickOpsMonitorSuffix] = NormalizeQuickOpsMonitorSuffix(settings.QuickOpsMonitorSuffix)
+
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
 
@@ -2950,6 +2954,10 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// 风控中心功能（默认关闭，显式启用）
 		SettingKeyRiskControlEnabled: "false",
 
+		// 运维快捷监控（默认关闭，后缀为空）
+		SettingKeyQuickOpsMonitorEnabled: "false",
+		SettingKeyQuickOpsMonitorSuffix:  "",
+
 		// cyber 会话屏蔽（默认关闭，TTL 默认 3600s）
 		SettingKeyCyberSessionBlockEnabled:    "false",
 		SettingKeyCyberSessionBlockTTLSeconds: "3600",
@@ -3459,6 +3467,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Usage brief feature (default: disabled; strict true)
 	result.UsageBriefEnabled = settings[SettingKeyUsageBriefEnabled] == "true"
+
+	// Quick ops monitor (default: disabled; strict true and valid suffix).
+	quickOpsSuffix, quickOpsSuffixOK := ValidateQuickOpsMonitorSuffix(settings[SettingKeyQuickOpsMonitorSuffix])
+	result.QuickOpsMonitorEnabled = settings[SettingKeyQuickOpsMonitorEnabled] == "true" && quickOpsSuffixOK && quickOpsSuffix != ""
+	result.QuickOpsMonitorSuffix = quickOpsSuffix
 
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"

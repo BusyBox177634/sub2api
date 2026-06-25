@@ -193,7 +193,11 @@ func usageBriefReportWhere(filter service.UsageBriefReportFilter) (string, []any
 	}
 	if q := strings.TrimSpace(filter.Search); q != "" {
 		args = append(args, "%"+q+"%")
-		conditions = append(conditions, fmt.Sprintf("(r.title ILIKE $%d OR COALESCE(u.email, '') ILIKE $%d OR COALESCE(u.username, '') ILIKE $%d)", len(args), len(args), len(args)))
+		if strings.TrimSpace(filter.SearchScope) == "user" {
+			conditions = append(conditions, fmt.Sprintf("(COALESCE(u.email, '') ILIKE $%d OR COALESCE(u.username, '') ILIKE $%d)", len(args), len(args)))
+		} else {
+			conditions = append(conditions, fmt.Sprintf("(r.title ILIKE $%d OR COALESCE(u.email, '') ILIKE $%d OR COALESCE(u.username, '') ILIKE $%d)", len(args), len(args), len(args)))
+		}
 	}
 	if len(conditions) == 0 {
 		return "", args

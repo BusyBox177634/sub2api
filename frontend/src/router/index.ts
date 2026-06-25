@@ -11,6 +11,7 @@ import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
+import { quickMonitorAPI } from '@/api/quickMonitor'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
@@ -693,12 +694,103 @@ const routes: RouteRecordRaw[] = [
     }
   },
 
+  // ==================== Quick Monitor Public Read-only Routes ====================
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})',
+    name: 'QuickMonitorRoot',
+    redirect: (to) => `/${String(to.params.quickSuffix)}/dashboard`,
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '运维快捷监控',
+      titleKey: 'quickMonitor.title'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/dashboard',
+    name: 'QuickMonitorDashboard',
+    component: () => import('@/views/quick-monitor/DashboardView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '仪表盘',
+      titleKey: 'quickMonitor.nav.dashboard'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/ops',
+    name: 'QuickMonitorOps',
+    component: () => import('@/views/quick-monitor/OpsView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '运维监控',
+      titleKey: 'quickMonitor.nav.ops'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/users',
+    name: 'QuickMonitorUsers',
+    component: () => import('@/views/quick-monitor/UsersView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '用户管理',
+      titleKey: 'quickMonitor.nav.users'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/groups',
+    name: 'QuickMonitorGroups',
+    component: () => import('@/views/quick-monitor/GroupsView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '分组管理',
+      titleKey: 'quickMonitor.nav.groups'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/subscriptions',
+    name: 'QuickMonitorSubscriptions',
+    component: () => import('@/views/quick-monitor/SubscriptionsView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '订阅管理',
+      titleKey: 'quickMonitor.nav.subscriptions'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/usage',
+    name: 'QuickMonitorUsage',
+    component: () => import('@/views/quick-monitor/UsageView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '使用记录',
+      titleKey: 'quickMonitor.nav.usage'
+    }
+  },
+  {
+    path: '/:quickSuffix([A-Za-z0-9_-]{4,64})/usage-brief',
+    name: 'QuickMonitorUsageBrief',
+    component: () => import('@/views/quick-monitor/UsageBriefView.vue'),
+    meta: {
+      requiresAuth: false,
+      quickMonitor: true,
+      title: '用量简报',
+      titleKey: 'quickMonitor.nav.usageBrief'
+    }
+  },
+
   // ==================== 404 Not Found ====================
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue'),
     meta: {
+      requiresAuth: false,
       title: '404 Not Found'
     }
   }
@@ -740,7 +832,39 @@ const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/wechat/payment/callback',
 ]
 const BACKEND_MODE_PENDING_AUTH_PATHS = ['/register', '/email-verify']
-
+const QUICK_MONITOR_RESERVED_SUFFIXES = new Set([
+  'admin',
+  'affiliate',
+  'api',
+  'auth',
+  'available-channels',
+  'chat',
+  'custom',
+  'dashboard',
+  'email-verify',
+  'forgot-password',
+  'groups',
+  'health',
+  'home',
+  'key-usage',
+  'keys',
+  'legal',
+  'login',
+  'monitor',
+  'orders',
+  'payment',
+  'profile',
+  'purchase',
+  'redeem',
+  'register',
+  'reset-password',
+  'setup',
+  'subscriptions',
+  'usage',
+  'usage-brief',
+  'wechat',
+  'ws',
+])
 function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: boolean): boolean {
   if (BACKEND_MODE_ALLOWED_PATHS.some((allowedPath) => path === allowedPath || path.startsWith(allowedPath))) {
     return true
@@ -768,6 +892,22 @@ async function resolveUsageBriefRouteEnabled(appStore: ReturnType<typeof useAppS
   return isFeatureFlagEnabled(FeatureFlags.usageBrief)
 }
 
+async function resolveQuickMonitorRouteEnabled(suffix: string): Promise<boolean> {
+  const normalized = suffix.trim()
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(normalized)) {
+    return false
+  }
+  if (QUICK_MONITOR_RESERVED_SUFFIXES.has(normalized.toLowerCase())) {
+    return false
+  }
+  try {
+    const status = await quickMonitorAPI.status(normalized)
+    return status.enabled === true
+  } catch {
+    return false
+  }
+}
+
 router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
@@ -792,6 +932,16 @@ router.beforeEach(async (to, _from, next) => {
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
+
+  if (to.meta.quickMonitor) {
+    const suffix = String(to.params.quickSuffix || '')
+    if (!(await resolveQuickMonitorRouteEnabled(suffix))) {
+      next('/404')
+      return
+    }
+    next()
+    return
+  }
 
   if (to.path === '/setup') {
     try {

@@ -31,6 +31,34 @@ func TestUsageBriefReportWhere_DateRangeUsesOverlap(t *testing.T) {
 	}
 }
 
+func TestUsageBriefReportWhere_UserSearchScopeExcludesTitle(t *testing.T) {
+	where, args := usageBriefReportWhere(service.UsageBriefReportFilter{
+		Search:      "工作日报",
+		SearchScope: "user",
+	})
+
+	if strings.Contains(where, "r.title") {
+		t.Fatalf("expected user search scope to exclude report title, got %q", where)
+	}
+	if !strings.Contains(where, "COALESCE(u.email, '') ILIKE $1") || !strings.Contains(where, "COALESCE(u.username, '') ILIKE $1") {
+		t.Fatalf("expected user search scope to match username/email, got %q", where)
+	}
+	if len(args) != 1 || args[0] != "%工作日报%" {
+		t.Fatalf("unexpected args: %#v", args)
+	}
+}
+
+func TestUsageBriefReportWhere_DefaultSearchIncludesTitle(t *testing.T) {
+	where, args := usageBriefReportWhere(service.UsageBriefReportFilter{Search: "工作日报"})
+
+	if !strings.Contains(where, "r.title ILIKE $1") {
+		t.Fatalf("expected default search to include report title, got %q", where)
+	}
+	if len(args) != 1 || args[0] != "%工作日报%" {
+		t.Fatalf("unexpected args: %#v", args)
+	}
+}
+
 func TestUsageBriefRepositoryCreateBatch_EmptyNotesWritesEmptyString(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {

@@ -618,6 +618,10 @@ export interface SystemSettings {
   // Usage Brief feature switch
   usage_brief_enabled: boolean;
 
+  // Quick Ops Monitor public read-only entry
+  quick_ops_monitor_enabled: boolean;
+  quick_ops_monitor_suffix: string;
+
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: boolean;
 
@@ -861,6 +865,10 @@ export interface UpdateSettingsRequest {
 
   // Usage Brief feature switch
   usage_brief_enabled?: boolean;
+
+  // Quick Ops Monitor public read-only entry
+  quick_ops_monitor_enabled?: boolean;
+  quick_ops_monitor_suffix?: string;
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled?: boolean;

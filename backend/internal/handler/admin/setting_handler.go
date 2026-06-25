@@ -303,6 +303,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		UsageBriefEnabled: settings.UsageBriefEnabled,
 
+		QuickOpsMonitorEnabled: settings.QuickOpsMonitorEnabled,
+		QuickOpsMonitorSuffix:  settings.QuickOpsMonitorSuffix,
+
 		AffiliateEnabled: settings.AffiliateEnabled,
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
@@ -652,6 +655,10 @@ type UpdateSettingsRequest struct {
 
 	// Usage Brief feature switch
 	UsageBriefEnabled *bool `json:"usage_brief_enabled"`
+
+	// Quick ops monitor read-only public entry
+	QuickOpsMonitorEnabled *bool   `json:"quick_ops_monitor_enabled"`
+	QuickOpsMonitorSuffix  *string `json:"quick_ops_monitor_suffix"`
 
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled *bool `json:"affiliate_enabled"`
@@ -1485,6 +1492,24 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
+	quickOpsMonitorEnabled := previousSettings.QuickOpsMonitorEnabled
+	if req.QuickOpsMonitorEnabled != nil {
+		quickOpsMonitorEnabled = *req.QuickOpsMonitorEnabled
+	}
+	quickOpsMonitorSuffix := previousSettings.QuickOpsMonitorSuffix
+	if req.QuickOpsMonitorSuffix != nil {
+		quickOpsMonitorSuffix = *req.QuickOpsMonitorSuffix
+	}
+	normalizedQuickOpsSuffix, quickOpsSuffixOK := service.ValidateQuickOpsMonitorSuffix(quickOpsMonitorSuffix)
+	if !quickOpsSuffixOK {
+		response.BadRequest(c, "quick_ops_monitor_suffix must be 4-64 characters, contain only letters, numbers, hyphen or underscore, and not conflict with existing routes")
+		return
+	}
+	if quickOpsMonitorEnabled && normalizedQuickOpsSuffix == "" {
+		response.BadRequest(c, "quick_ops_monitor_suffix is required when quick ops monitor is enabled")
+		return
+	}
+
 	settings := &service.SystemSettings{
 		// 系统全局 platform quota 默认值（整体替换语义）
 		DefaultPlatformQuotas: req.DefaultPlatformQuotas,
@@ -1804,6 +1829,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.UsageBriefEnabled
 		}(),
+		QuickOpsMonitorEnabled: quickOpsMonitorEnabled,
+		QuickOpsMonitorSuffix:  normalizedQuickOpsSuffix,
 		AffiliateEnabled: func() bool {
 			if req.AffiliateEnabled != nil {
 				return *req.AffiliateEnabled
@@ -2151,6 +2178,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
 
 		UsageBriefEnabled: updatedSettings.UsageBriefEnabled,
+
+		QuickOpsMonitorEnabled: updatedSettings.QuickOpsMonitorEnabled,
+		QuickOpsMonitorSuffix:  updatedSettings.QuickOpsMonitorSuffix,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
 
@@ -2643,6 +2673,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.UsageBriefEnabled != after.UsageBriefEnabled {
 		changed = append(changed, "usage_brief_enabled")
+	}
+	if before.QuickOpsMonitorEnabled != after.QuickOpsMonitorEnabled {
+		changed = append(changed, "quick_ops_monitor_enabled")
+	}
+	if before.QuickOpsMonitorSuffix != after.QuickOpsMonitorSuffix {
+		changed = append(changed, "quick_ops_monitor_suffix")
 	}
 	if before.AffiliateEnabled != after.AffiliateEnabled {
 		changed = append(changed, "affiliate_enabled")

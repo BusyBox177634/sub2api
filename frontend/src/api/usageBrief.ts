@@ -190,6 +190,7 @@ export interface UsageBriefReportQuery {
   source_kind?: string
   status?: string
   search?: string
+  search_scope?: 'user' | ''
   start_date?: string
   end_date?: string
 }
