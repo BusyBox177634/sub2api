@@ -177,8 +177,9 @@ func ProvideUsageLogDetailRetentionService(repo UsageLogDetailRepository, cfg *c
 }
 
 // ProvideUsageBriefService creates and starts the AI usage brief worker.
-func ProvideUsageBriefService(repo UsageBriefRepository, settingRepo SettingRepository, encryptor SecretEncryptor) *UsageBriefService {
+func ProvideUsageBriefService(repo UsageBriefRepository, settingRepo SettingRepository, encryptor SecretEncryptor, notificationEmailService *NotificationEmailService) *UsageBriefService {
 	svc := NewUsageBriefService(repo, settingRepo, encryptor)
+	svc.SetNotificationEmailService(notificationEmailService)
 	svc.Start()
 	return svc
 }

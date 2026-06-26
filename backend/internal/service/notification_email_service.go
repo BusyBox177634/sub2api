@@ -33,6 +33,7 @@ const (
 	NotificationEmailEventCyberPolicyNotice           = "content_moderation.cyber_policy_notice"
 	NotificationEmailEventOpsAlert                    = "ops.alert"
 	NotificationEmailEventOpsScheduledReport          = "ops.scheduled_report"
+	NotificationEmailEventUsageBriefReport            = "usage_brief.report"
 
 	notificationEmailTemplateKeyPrefix    = "notification_email_template:"
 	notificationEmailPreferenceKeyPrefix  = "notification_email_preference:"
@@ -711,7 +712,8 @@ func renderNotificationEmailString(event, raw string, variables map[string]strin
 }
 
 func notificationEmailRawHTMLAllowed(event, placeholder string) bool {
-	return event == NotificationEmailEventOpsScheduledReport && placeholder == "report_html"
+	return (event == NotificationEmailEventOpsScheduledReport && placeholder == "report_html") ||
+		(event == NotificationEmailEventUsageBriefReport && placeholder == "brief_html")
 }
 
 func notificationEmailAllowedPlaceholderSet(event string) map[string]struct{} {
@@ -888,6 +890,11 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 			"report_start_time":   "2026-05-19 12:00",
 			"report_end_time":     "2026-05-20 12:00",
 			"report_html":         "<h2>日报</h2><p>请求量：1024</p>",
+			"brief_title":         "2026-05-19 工作日报",
+			"brief_period_type":   "日报",
+			"brief_period_start":  "2026-05-19",
+			"brief_period_end":    "2026-05-19",
+			"brief_html":          "<h2>工作概览</h2><p>完成了订单模块设计。</p>",
 		}
 	}
 	return map[string]string{
@@ -934,6 +941,11 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 		"report_start_time":   "2026-05-19 12:00",
 		"report_end_time":     "2026-05-20 12:00",
 		"report_html":         "<h2>Daily summary</h2><p>Requests: 1024</p>",
+		"brief_title":         "2026-05-19 Work daily report",
+		"brief_period_type":   "Daily report",
+		"brief_period_start":  "2026-05-19",
+		"brief_period_end":    "2026-05-19",
+		"brief_html":          "<h2>Work overview</h2><p>Completed order module design.</p>",
 	}
 }
 
@@ -951,6 +963,7 @@ var notificationEmailEventOrder = []string{
 	NotificationEmailEventCyberPolicyNotice,
 	NotificationEmailEventOpsAlert,
 	NotificationEmailEventOpsScheduledReport,
+	NotificationEmailEventUsageBriefReport,
 }
 
 var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
@@ -1063,6 +1076,15 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 		Optional:    false,
 		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...),
 			"report_name", "report_type", "report_start_time", "report_end_time", "report_html"),
+	},
+	NotificationEmailEventUsageBriefReport: {
+		Event:       NotificationEmailEventUsageBriefReport,
+		Label:       "Usage brief",
+		Description: "Sent to normal users when a daily, weekly, or monthly usage brief is generated.",
+		Category:    "usage_brief",
+		Optional:    false,
+		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...),
+			"brief_title", "brief_period_type", "brief_period_start", "brief_period_end", "brief_html"),
 	},
 }
 
@@ -1354,6 +1376,24 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 <p><strong>类型</strong>：{{report_type}}</p>
 <p><strong>时间范围</strong>：{{report_start_time}} - {{report_end_time}}</p>
 <div>{{report_html}}</div>`),
+		},
+	},
+	NotificationEmailEventUsageBriefReport: {
+		notificationEmailDefaultLocale: {
+			Subject: "[{{site_name}}] 用量简报",
+			HTML: notificationEmailCard("#2563eb", "用量简报", `
+<p>Hello {{recipient_name}},</p>
+<p><strong>{{brief_title}}</strong></p>
+<p><strong>{{brief_period_type}}</strong> · {{brief_period_start}} - {{brief_period_end}}</p>
+<div>{{brief_html}}</div>`),
+		},
+		notificationEmailLocaleChinese: {
+			Subject: "[{{site_name}}] 用量简报",
+			HTML: notificationEmailCard("#2563eb", "用量简报", `
+<p>{{recipient_name}}，您好：</p>
+<p><strong>{{brief_title}}</strong></p>
+<p><strong>{{brief_period_type}}</strong> · {{brief_period_start}} 至 {{brief_period_end}}</p>
+<div>{{brief_html}}</div>`),
 		},
 	},
 }

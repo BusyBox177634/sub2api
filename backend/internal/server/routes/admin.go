@@ -134,6 +134,7 @@ func registerUsageBriefRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		brief.POST("/jobs/:id/cancel", h.Admin.UsageBrief.CancelJob)
 		brief.POST("/jobs/:id/reset", h.Admin.UsageBrief.ResetJob)
 		brief.POST("/jobs/:id/rerun", h.Admin.UsageBrief.RerunJob)
+		brief.POST("/jobs/:id/send-email", h.Admin.UsageBrief.SendJobEmail)
 		brief.GET("/jobs/:id/chunks", h.Admin.UsageBrief.ListJobChunks)
 		brief.GET("/jobs/:id/conversations", h.Admin.UsageBrief.ListJobConversations)
 		brief.DELETE("/jobs/:id", h.Admin.UsageBrief.DeleteJob)

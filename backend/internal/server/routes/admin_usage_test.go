@@ -60,6 +60,7 @@ func TestRegisterUsageBriefRoutesRegistersQueueAndReportGroupRoutes(t *testing.T
 	foundDeleteJob := false
 	foundRerunBatch := false
 	foundRerunJob := false
+	foundSendJobEmail := false
 	foundJobChunks := false
 	foundJobConversations := false
 	for _, route := range router.Routes() {
@@ -78,6 +79,9 @@ func TestRegisterUsageBriefRoutesRegistersQueueAndReportGroupRoutes(t *testing.T
 		if route.Method == http.MethodPost && route.Path == "/admin/usage-brief/jobs/:id/rerun" {
 			foundRerunJob = true
 		}
+		if route.Method == http.MethodPost && route.Path == "/admin/usage-brief/jobs/:id/send-email" {
+			foundSendJobEmail = true
+		}
 		if route.Method == http.MethodGet && route.Path == "/admin/usage-brief/jobs/:id/chunks" {
 			foundJobChunks = true
 		}
@@ -90,6 +94,7 @@ func TestRegisterUsageBriefRoutesRegistersQueueAndReportGroupRoutes(t *testing.T
 	require.True(t, foundDeleteReportGroups, "DELETE /admin/usage-brief/report-groups route is not registered")
 	require.True(t, foundRerunBatch, "POST /admin/usage-brief/batches/:id/rerun route is not registered")
 	require.True(t, foundRerunJob, "POST /admin/usage-brief/jobs/:id/rerun route is not registered")
+	require.True(t, foundSendJobEmail, "POST /admin/usage-brief/jobs/:id/send-email route is not registered")
 	require.True(t, foundJobChunks, "GET /admin/usage-brief/jobs/:id/chunks route is not registered")
 	require.True(t, foundJobConversations, "GET /admin/usage-brief/jobs/:id/conversations route is not registered")
 }

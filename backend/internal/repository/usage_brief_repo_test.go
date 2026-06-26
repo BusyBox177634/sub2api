@@ -340,6 +340,7 @@ func TestUsageBriefRepositoryResetBatchPreservesChunks(t *testing.T) {
 			service.UsageBriefStatusFailed,
 			service.UsageBriefStatusCanceled,
 			service.UsageBriefStatusRunning,
+			service.UsageBriefEmailStatusPending,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 3))
 	mock.ExpectExec("UPDATE usage_brief_batches").
@@ -421,7 +422,7 @@ func TestUsageBriefRepositoryRerunBatchClearsChunksAndRequeuesInTransaction(t *t
 		WithArgs(int64(42)).
 		WillReturnResult(sqlmock.NewResult(0, 4))
 	mock.ExpectExec("UPDATE usage_brief_jobs[\\s\\S]*cancel_requested = FALSE[\\s\\S]*WHERE batch_id = \\$1").
-		WithArgs(int64(42), service.UsageBriefStatusQueued).
+		WithArgs(int64(42), service.UsageBriefStatusQueued, service.UsageBriefEmailStatusPending).
 		WillReturnResult(sqlmock.NewResult(0, 3))
 	mock.ExpectExec("UPDATE usage_brief_batches[\\s\\S]*cancel_requested = FALSE").
 		WithArgs(int64(42)).
@@ -512,6 +513,7 @@ func TestUsageBriefRepositoryRerunJobClearsChunksAndRequeuesInTransaction(t *tes
 			service.UsageBriefStatusCanceled,
 			service.UsageBriefStatusRunning,
 			service.UsageBriefStatusSucceeded,
+			service.UsageBriefEmailStatusPending,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -549,6 +551,10 @@ func TestUsageBriefRepositoryRerunJobClearsChunksAndRequeuesInTransaction(t *tes
 				nil,
 				"",
 				"",
+				service.UsageBriefEmailStatusPending,
+				nil,
+				"",
+				0,
 				nil,
 				nil,
 				nil,
@@ -866,7 +872,9 @@ func usageBriefJobColumns() []string {
 		"progress_current", "progress_total", "cancel_requested", "retry_count",
 		"next_retry_at", "stage", "chunk_current", "chunk_total",
 		"token_estimated_total", "token_estimated_processed", "input_tokens", "output_tokens",
-		"report_id", "result_md", "error_message", "locked_at", "started_at", "finished_at",
+		"report_id", "result_md", "error_message",
+		"email_status", "email_sent_at", "email_error_message", "email_attempt_count",
+		"locked_at", "started_at", "finished_at",
 		"created_by", "deleted_at", "created_at", "updated_at",
 	}
 }

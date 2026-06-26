@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '@/types'
 
 export type UsageBriefPeriodType = 'daily' | 'weekly' | 'monthly'
 export type UsageBriefStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'paused' | 'partial'
+export type UsageBriefEmailStatus = 'pending' | 'sent' | 'failed' | 'skipped'
 
 export interface UsageBriefReport {
   id: number
@@ -79,6 +80,10 @@ export interface UsageBriefJob {
   report_id?: number
   result_md?: string
   error_message?: string
+  email_status: UsageBriefEmailStatus
+  email_sent_at?: string
+  email_error_message?: string
+  email_attempt_count: number
   started_at?: string
   finished_at?: string
   created_at: string
@@ -353,6 +358,11 @@ export const adminUsageBriefAPI = {
 
   async rerunJob(id: number): Promise<UsageBriefJob> {
     const { data } = await apiClient.post<UsageBriefJob>(`/admin/usage-brief/jobs/${id}/rerun`)
+    return data
+  },
+
+  async sendJobEmail(id: number): Promise<UsageBriefJob> {
+    const { data } = await apiClient.post<UsageBriefJob>(`/admin/usage-brief/jobs/${id}/send-email`)
     return data
   },
 

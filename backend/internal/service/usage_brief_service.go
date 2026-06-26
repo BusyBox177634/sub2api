@@ -28,10 +28,11 @@ const (
 var usageBriefSourceChunkRetryDelay = 15 * time.Second
 
 type UsageBriefService struct {
-	repo       UsageBriefRepository
-	settings   SettingRepository
-	encryptor  SecretEncryptor
-	httpClient *http.Client
+	repo                     UsageBriefRepository
+	settings                 SettingRepository
+	encryptor                SecretEncryptor
+	httpClient               *http.Client
+	notificationEmailService *NotificationEmailService
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -54,6 +55,13 @@ func NewUsageBriefService(repo UsageBriefRepository, settings SettingRepository,
 		ctx:    ctx,
 		cancel: cancel,
 	}
+}
+
+func (s *UsageBriefService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
+	if s == nil {
+		return
+	}
+	s.notificationEmailService = notificationEmailService
 }
 
 func (s *UsageBriefService) Start() {
@@ -773,6 +781,7 @@ func (s *UsageBriefService) processJob(ctx context.Context, job UsageBriefJob) {
 	if err := s.repo.CompleteJob(ctx, job.ID, reportID, result, status); err != nil {
 		logger.LegacyPrintf("service.usage_brief", "complete job failed: job_id=%d err=%v", job.ID, err)
 	}
+	s.sendProductionJobEmailIfNeeded(ctx, job.ID)
 	s.refreshJobBatchStats(ctx, job)
 }
 

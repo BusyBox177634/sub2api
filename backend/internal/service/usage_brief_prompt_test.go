@@ -145,6 +145,23 @@ func TestUsageBriefSettingsConcurrencyCapsAtThirtyTwo(t *testing.T) {
 	}
 }
 
+func TestUsageBriefMarkdownToEmailHTMLEscapesUnsafeHTML(t *testing.T) {
+	html := usageBriefMarkdownToEmailHTML("## 工作概览\n<script>alert(1)</script>\n- 完成订单模块\n\n```json\n{\"ok\":true}\n```")
+
+	if !strings.Contains(html, "<h2>工作概览</h2>") {
+		t.Fatalf("expected heading html, got %s", html)
+	}
+	if !strings.Contains(html, "<li>完成订单模块</li>") {
+		t.Fatalf("expected list item html, got %s", html)
+	}
+	if strings.Contains(html, "<script>") {
+		t.Fatalf("unsafe html should be escaped: %s", html)
+	}
+	if !strings.Contains(html, "&lt;script&gt;alert(1)&lt;/script&gt;") {
+		t.Fatalf("expected escaped script, got %s", html)
+	}
+}
+
 type usageBriefSettingRepoStub struct {
 	values map[string]string
 }

@@ -143,6 +143,7 @@ func TestNotificationEmailAdditionalEventsAreListedAndPreviewable(t *testing.T) 
 		{NotificationEmailEventCyberPolicyNotice, "upstream_message"},
 		{NotificationEmailEventOpsAlert, "rule_name"},
 		{NotificationEmailEventOpsScheduledReport, "report_html"},
+		{NotificationEmailEventUsageBriefReport, "brief_html"},
 	}
 
 	for _, check := range checks {
@@ -160,6 +161,7 @@ func TestNotificationEmailAdditionalEventsAreListedAndPreviewable(t *testing.T) 
 
 func TestNotificationEmailRawHTMLVariablesAreTrustedOnlyForHTMLPlaceholders(t *testing.T) {
 	require.True(t, notificationEmailRawHTMLAllowed(NotificationEmailEventOpsScheduledReport, "report_html"))
+	require.True(t, notificationEmailRawHTMLAllowed(NotificationEmailEventUsageBriefReport, "brief_html"))
 	require.False(t, notificationEmailRawHTMLAllowed(NotificationEmailEventOpsScheduledReport, "recipient_name"))
 	require.False(t, notificationEmailRawHTMLAllowed(NotificationEmailEventOpsAlert, "report_html"))
 
@@ -191,6 +193,30 @@ func TestNotificationEmailRawHTMLVariablesAreTrustedOnlyForHTMLPlaceholders(t *t
 	require.NoError(t, err)
 	require.Contains(t, preview.HTML, `&lt;em&gt;escaped&lt;/em&gt;`)
 	require.NotContains(t, preview.HTML, `<strong>raw</strong>`)
+}
+
+func TestUsageBriefEmailTemplateSubjectAndHTMLPlaceholder(t *testing.T) {
+	ctx := context.Background()
+	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+
+	tmpl, err := svc.GetTemplate(ctx, NotificationEmailEventUsageBriefReport, "zh-CN")
+	require.NoError(t, err)
+	require.Equal(t, "[{{site_name}}] 用量简报", tmpl.Subject)
+	require.Contains(t, tmpl.Placeholders, "brief_html")
+
+	preview, err := svc.PreviewTemplate(ctx, NotificationEmailPreviewInput{
+		Event:  NotificationEmailEventUsageBriefReport,
+		Locale: "zh",
+		Variables: map[string]string{
+			"brief_title":        "工作日报",
+			"brief_period_type":  "日报",
+			"brief_period_start": "2026-06-24",
+			"brief_period_end":   "2026-06-24",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "[Sub2API] 用量简报", preview.Subject)
+	require.Contains(t, preview.HTML, "工作日报")
 }
 
 func TestNotificationEmailFallbackClassification(t *testing.T) {

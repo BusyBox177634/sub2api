@@ -440,6 +440,19 @@ func (h *UsageBriefHandler) RerunJob(c *gin.Context) {
 	response.Success(c, job)
 }
 
+func (h *UsageBriefHandler) SendJobEmail(c *gin.Context) {
+	id, ok := parseUsageBriefIDParam(c, "id")
+	if !ok {
+		return
+	}
+	job, err := h.service.SendJobEmail(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, job)
+}
+
 func (h *UsageBriefHandler) ListJobChunks(c *gin.Context) {
 	id, ok := parseUsageBriefIDParam(c, "id")
 	if !ok {

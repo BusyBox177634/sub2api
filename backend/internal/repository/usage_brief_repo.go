@@ -612,9 +612,13 @@ SET status = $2,
 	started_at = NULL,
 	finished_at = NULL,
 	retry_count = 0,
+	email_status = $6,
+	email_sent_at = NULL,
+	email_error_message = NULL,
+	email_attempt_count = 0,
 	updated_at = NOW()
 WHERE batch_id = $1 AND deleted_at IS NULL AND status IN ($2, $3, $4, $5)
-`, id, service.UsageBriefStatusQueued, service.UsageBriefStatusFailed, service.UsageBriefStatusCanceled, service.UsageBriefStatusRunning); err != nil {
+`, id, service.UsageBriefStatusQueued, service.UsageBriefStatusFailed, service.UsageBriefStatusCanceled, service.UsageBriefStatusRunning, service.UsageBriefEmailStatusPending); err != nil {
 		return nil, err
 	}
 	if _, err := r.db.ExecContext(ctx, `
@@ -681,9 +685,13 @@ SET status = $2,
 	retry_count = 0,
 	report_id = NULL,
 	result_md = NULL,
+	email_status = $3,
+	email_sent_at = NULL,
+	email_error_message = NULL,
+	email_attempt_count = 0,
 	updated_at = NOW()
 WHERE batch_id = $1 AND deleted_at IS NULL
-`, id, service.UsageBriefStatusQueued); err != nil {
+`, id, service.UsageBriefStatusQueued, service.UsageBriefEmailStatusPending); err != nil {
 		return nil, err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -865,7 +873,8 @@ SELECT
 	j.cancel_requested, j.retry_count, j.next_retry_at, j.stage,
 	j.chunk_current, j.chunk_total, j.token_estimated_total, j.token_estimated_processed,
 	j.input_tokens, j.output_tokens, j.report_id, j.result_md,
-	j.error_message, j.locked_at, j.started_at, j.finished_at,
+	j.error_message, j.email_status, j.email_sent_at, j.email_error_message, j.email_attempt_count,
+	j.locked_at, j.started_at, j.finished_at,
 	j.created_by, j.deleted_at, j.created_at, j.updated_at
 FROM usage_brief_jobs j
 LEFT JOIN users u ON u.id = j.user_id
@@ -1175,6 +1184,42 @@ WHERE id = $1
 	return err
 }
 
+func (r *usageBriefRepository) MarkJobEmailSent(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `
+UPDATE usage_brief_jobs
+SET email_status = $2,
+	email_sent_at = NOW(),
+	email_error_message = NULL,
+	email_attempt_count = email_attempt_count + 1,
+	updated_at = NOW()
+WHERE id = $1
+`, id, service.UsageBriefEmailStatusSent)
+	return err
+}
+
+func (r *usageBriefRepository) MarkJobEmailFailed(ctx context.Context, id int64, errMsg string) error {
+	_, err := r.db.ExecContext(ctx, `
+UPDATE usage_brief_jobs
+SET email_status = $2,
+	email_error_message = $3,
+	email_attempt_count = email_attempt_count + 1,
+	updated_at = NOW()
+WHERE id = $1
+`, id, service.UsageBriefEmailStatusFailed, strings.TrimSpace(errMsg))
+	return err
+}
+
+func (r *usageBriefRepository) MarkJobEmailSkipped(ctx context.Context, id int64, reason string) error {
+	_, err := r.db.ExecContext(ctx, `
+UPDATE usage_brief_jobs
+SET email_status = $2,
+	email_error_message = $3,
+	updated_at = NOW()
+WHERE id = $1
+`, id, service.UsageBriefEmailStatusSkipped, strings.TrimSpace(reason))
+	return err
+}
+
 func (r *usageBriefRepository) CancelJob(ctx context.Context, id int64) (*service.UsageBriefJob, error) {
 	_, err := r.db.ExecContext(ctx, `
 UPDATE usage_brief_jobs
@@ -1205,9 +1250,13 @@ SET status = $2,
 	started_at = NULL,
 	finished_at = NULL,
 	retry_count = 0,
+	email_status = $6,
+	email_sent_at = NULL,
+	email_error_message = NULL,
+	email_attempt_count = 0,
 	updated_at = NOW()
 WHERE id = $1 AND status IN ($3, $4, $5)
-`, id, service.UsageBriefStatusQueued, service.UsageBriefStatusFailed, service.UsageBriefStatusCanceled, service.UsageBriefStatusRunning)
+`, id, service.UsageBriefStatusQueued, service.UsageBriefStatusFailed, service.UsageBriefStatusCanceled, service.UsageBriefStatusRunning, service.UsageBriefEmailStatusPending)
 	if err != nil {
 		return nil, err
 	}
@@ -1259,10 +1308,14 @@ SET status = $2,
 	retry_count = 0,
 	report_id = NULL,
 	result_md = NULL,
+	email_status = $7,
+	email_sent_at = NULL,
+	email_error_message = NULL,
+	email_attempt_count = 0,
 	updated_at = NOW()
 WHERE id = $1 AND status IN ($3, $4, $5, $6)
 `, id, service.UsageBriefStatusQueued, service.UsageBriefStatusFailed, service.UsageBriefStatusCanceled,
-		service.UsageBriefStatusRunning, service.UsageBriefStatusSucceeded)
+		service.UsageBriefStatusRunning, service.UsageBriefStatusSucceeded, service.UsageBriefEmailStatusPending)
 	if err != nil {
 		return nil, err
 	}
@@ -1958,6 +2011,9 @@ func scanUsageBriefJobs(rows *sql.Rows) ([]service.UsageBriefJob, error) {
 			reportID    sql.NullInt64
 			resultMD    sql.NullString
 			errMsg      sql.NullString
+			emailStatus sql.NullString
+			emailSentAt sql.NullTime
+			emailErrMsg sql.NullString
 			lockedAt    sql.NullTime
 			startedAt   sql.NullTime
 			finishedAt  sql.NullTime
@@ -1971,7 +2027,8 @@ func scanUsageBriefJobs(rows *sql.Rows) ([]service.UsageBriefJob, error) {
 			&job.ProgressCurrent, &job.ProgressTotal, &job.CancelRequested, &job.RetryCount,
 			&nextRetryAt, &stage, &job.ChunkCurrent, &job.ChunkTotal,
 			&job.TokenEstimatedTotal, &job.TokenEstimatedProcessed, &job.InputTokens, &job.OutputTokens,
-			&reportID, &resultMD, &errMsg, &lockedAt, &startedAt, &finishedAt,
+			&reportID, &resultMD, &errMsg, &emailStatus, &emailSentAt, &emailErrMsg, &job.EmailAttemptCount,
+			&lockedAt, &startedAt, &finishedAt,
 			&createdBy, &deletedAt, &job.CreatedAt, &job.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -1997,6 +2054,15 @@ func scanUsageBriefJobs(rows *sql.Rows) ([]service.UsageBriefJob, error) {
 		}
 		if errMsg.Valid {
 			job.ErrorMessage = errMsg.String
+		}
+		if emailStatus.Valid && strings.TrimSpace(emailStatus.String) != "" {
+			job.EmailStatus = emailStatus.String
+		} else {
+			job.EmailStatus = service.UsageBriefEmailStatusPending
+		}
+		job.EmailSentAt = nullTimeToPtr(emailSentAt)
+		if emailErrMsg.Valid {
+			job.EmailErrorMessage = emailErrMsg.String
 		}
 		job.LockedAt = nullTimeToPtr(lockedAt)
 		job.StartedAt = nullTimeToPtr(startedAt)

@@ -26,6 +26,11 @@ const (
 	UsageBriefStatusPaused    = "paused"
 	UsageBriefStatusPartial   = "partial"
 
+	UsageBriefEmailStatusPending = "pending"
+	UsageBriefEmailStatusSent    = "sent"
+	UsageBriefEmailStatusFailed  = "failed"
+	UsageBriefEmailStatusSkipped = "skipped"
+
 	UsageBriefDefaultModel                = "gpt-5.5"
 	UsageBriefDefaultContextTokens        = 400000
 	UsageBriefDefaultOutputReservedTokens = 128000
@@ -208,6 +213,10 @@ type UsageBriefJob struct {
 	ReportID                *int64     `json:"report_id,omitempty"`
 	ResultMD                string     `json:"result_md,omitempty"`
 	ErrorMessage            string     `json:"error_message,omitempty"`
+	EmailStatus             string     `json:"email_status"`
+	EmailSentAt             *time.Time `json:"email_sent_at,omitempty"`
+	EmailErrorMessage       string     `json:"email_error_message,omitempty"`
+	EmailAttemptCount       int        `json:"email_attempt_count"`
 	LockedAt                *time.Time `json:"locked_at,omitempty"`
 	StartedAt               *time.Time `json:"started_at,omitempty"`
 	FinishedAt              *time.Time `json:"finished_at,omitempty"`
@@ -385,6 +394,9 @@ type UsageBriefRepository interface {
 	ScheduleJobDependencyWait(ctx context.Context, id int64, errMsg string, nextRetryAt time.Time) error
 	MarkJobCanceled(ctx context.Context, id int64) error
 	ClearJobCancelRequest(ctx context.Context, id int64) error
+	MarkJobEmailSent(ctx context.Context, id int64) error
+	MarkJobEmailFailed(ctx context.Context, id int64, errMsg string) error
+	MarkJobEmailSkipped(ctx context.Context, id int64, reason string) error
 	CancelJob(ctx context.Context, id int64) (*UsageBriefJob, error)
 	ResetJob(ctx context.Context, id int64) (*UsageBriefJob, error)
 	RerunJob(ctx context.Context, id int64) (*UsageBriefJob, error)

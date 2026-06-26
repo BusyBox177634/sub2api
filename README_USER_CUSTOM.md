@@ -60,6 +60,10 @@
 - 普通用户只能只读查看自己的日报、周报和月报。
 - 管理员可分页、分组查看所有普通用户正式报告，并可按用户邮箱搜索、日期范围和日报/周报/月报筛选、编辑或删除单篇报告，也可按当前筛选范围删除整组报告。
 - 自动任务会为所有普通用户生成简报：日报基于当天 usage 数据和请求 JSON，周报基于周一到周日的 7 天日报，月报按严格自然月生成并使用自然月内日报校准边界。
+- “系统设置 → 邮件设置 → 邮件模板”中新增通知邮件事件 `usage_brief.report`，显示为“用量简报”，默认主题固定为 `[{{site_name}}] 用量简报`。
+- 官方中英文模板使用现有通知邮件卡片样式，正文直接展示完整简报 HTML，不提供报告跳转链接。
+- 生产队列任务生成成功或部分成功后，会自动给对应普通用户发送日报、周报或月报邮件；测试队列不自动发送。
+- 管理员用量简报的生产与测试队列中，每个任务都会显示邮件发送状态和发送邮件按钮；邮件发送失败只记录在邮件状态中，不改变任务生成结果。
 - 生成的 Markdown 简报定位为普通用户工作总结，新生成报告标题为“工作日报”“工作周报”“工作月报”，重点凸显完成了什么模块、做了哪些设计或实现、贡献度、风险和建议；token、成本和模型等用量信息只在“用量概括”中用一句话概括。
 - 如果某个周期没有采集到任何使用记录，生成的工作日报、周报或月报会简洁说明“暂无工作情况”，不会扩写空洞内容。
 - 查看当天、当周或当月报告时，页面会提示“请在明天后查看”“请在下周后查看”或“请在下月后查看”。
@@ -147,10 +151,12 @@
 - `POST /api/v1/admin/usage-brief/batches/:id/rerun`：重新生成批次，清空批次内任务已保存的分片后从头执行。
 - `DELETE /api/v1/admin/usage-brief/batches/:id`：删除批次；运行中任务会先请求取消并从列表隐藏。
 - `GET /api/v1/admin/usage-brief/jobs`：分页查看生产和测试生成任务，支持 `page`、`page_size`、`scope`、`status`、`user_id`、`batch_id` 等查询参数；主要用于兼容和批次内任务查询。
+- 生产与测试任务响应包含邮件状态字段：`email_status`、`email_sent_at`、`email_error_message`、`email_attempt_count`，用于展示邮件是否待发送、已发送、发送失败或已跳过。
 - `GET /api/v1/admin/usage-brief/jobs/:id/chunks`：分页查看任务 AI 输入分片，返回分片状态、估算 token、实际 input/output token、`retry_count`、`last_error_at`、错误信息和分片 JSON。
 - `GET /api/v1/admin/usage-brief/jobs/:id/conversations`：分页查看任务去重后的请求/响应合并对话 JSON；该列表与 AI 输入分片分开保存和展示。
 - `POST /api/v1/admin/usage-brief/jobs/production`：手动触发生产日报、周报或月报生成。
 - `POST /api/v1/admin/usage-brief/jobs/test`：创建测试生成任务。
+- `POST /api/v1/admin/usage-brief/jobs/:id/send-email`：管理员手动发送或补发已成功或部分成功任务的用量简报邮件，生产与测试队列均支持。
 - `POST /api/v1/admin/usage-brief/jobs/:id/cancel`：取消任务。
 - `POST /api/v1/admin/usage-brief/jobs/:id/reset`：恢复任务回到待执行状态，保留并复用输入未变化的成功分片。
 - `POST /api/v1/admin/usage-brief/jobs/:id/rerun`：重新生成任务，清空该任务已保存的分片后从头执行。

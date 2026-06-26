@@ -223,6 +223,7 @@
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">阶段</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">进度</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Token</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">邮件</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">重试</th>
                             <th class="px-3 py-2 text-right text-xs font-medium text-gray-500">操作</th>
                           </tr>
@@ -237,6 +238,13 @@
                               <span v-if="job.chunk_total" class="text-xs text-gray-500">· 分片 {{ job.chunk_current }}/{{ job.chunk_total }}</span>
                             </td>
                             <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">{{ tokenProgress(job) }}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
+                              <div>{{ emailStatusLabel(job.email_status) }}</div>
+                              <div v-if="job.email_sent_at" class="text-xs text-gray-500">{{ formatDateTime(job.email_sent_at) }}</div>
+                              <div v-else-if="job.email_error_message" class="max-w-[220px] truncate text-xs text-red-500" :title="job.email_error_message">
+                                {{ job.email_error_message }}
+                              </div>
+                            </td>
                             <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
                               {{ job.retry_count }} 次
                               <span v-if="job.next_retry_at" class="text-xs text-gray-500">· {{ formatDateTime(job.next_retry_at) }}</span>
@@ -267,6 +275,9 @@
                                 >
                                   重新生成
                                 </button>
+                                <button class="btn btn-secondary btn-sm" :disabled="isJobActionPending(job.id) || !canSendJobEmail(job)" @click="sendJobEmail(job.id)">
+                                  发送邮件
+                                </button>
                                 <button
                                   class="btn btn-secondary btn-sm"
                                   :disabled="isJobActionPending(job.id)"
@@ -296,7 +307,7 @@
                             </td>
                           </tr>
                           <tr v-if="!(batchJobs[batch.id] || []).length">
-                            <td colspan="7" class="px-3 py-5 text-center text-sm text-gray-500">暂无子任务</td>
+                            <td colspan="8" class="px-3 py-5 text-center text-sm text-gray-500">暂无子任务</td>
                           </tr>
                         </tbody>
                       </table>
@@ -737,6 +748,16 @@ function statusLabel(value: string) {
   return labels[value] || value
 }
 
+function emailStatusLabel(value?: string) {
+  const labels: Record<string, string> = {
+    pending: '未发送',
+    sent: '已发送',
+    failed: '发送失败',
+    skipped: '已跳过'
+  }
+  return labels[value || 'pending'] || value || '未发送'
+}
+
 function chunkSummaryText(chunk: UsageBriefJobChunk) {
   const parts = [`分片 ${chunk.chunk_index}`, chunk.status === 'failed' && (chunk.retry_count || 0) >= 15 ? '失败已跳过' : statusLabel(chunk.status)]
   if (chunk.retry_count) parts.push(`重试 ${chunk.retry_count}/15`)
@@ -843,6 +864,10 @@ function buildReportGroupQuery(): UsageBriefReportGroupQuery {
 
 function canViewTestResult(job: UsageBriefJob) {
   return job.job_scope === 'test' && (job.status === 'succeeded' || job.status === 'partial') && Boolean(job.result_md)
+}
+
+function canSendJobEmail(job: UsageBriefJob) {
+  return (job.status === 'succeeded' || job.status === 'partial') && job.email_status !== 'sent' && Boolean(job.user_email || job.user_id)
 }
 
 function clearSelection() {
@@ -1486,6 +1511,22 @@ async function rerunJob(id: number) {
       if (batchID) await loadBatchJobs(batchID)
     } catch (error: any) {
       appStore.showError(error?.message || '重新生成任务失败')
+    }
+  })
+}
+
+async function sendJobEmail(id: number) {
+  await withJobAction(id, async () => {
+    try {
+      await adminUsageBriefAPI.sendJobEmail(id)
+      appStore.showSuccess('邮件已发送')
+      await loadJobs()
+      const batchID = findJobBatchID(id)
+      if (batchID) await loadBatchJobs(batchID)
+    } catch (error: any) {
+      appStore.showError(error?.message || '发送邮件失败')
+      const batchID = findJobBatchID(id)
+      if (batchID) await loadBatchJobs(batchID)
     }
   })
 }
