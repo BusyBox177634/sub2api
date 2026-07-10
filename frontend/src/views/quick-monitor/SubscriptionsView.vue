@@ -251,7 +251,7 @@ async function loadSubscriptions() {
     const data = await quickMonitorAPI.subscriptions.list(suffix.value, {
       page: pagination.page,
       page_size: pagination.page_size,
-      status: (filters.status as UserSubscription['status'] | '') || undefined,
+      status: (filters.status as '' | 'active' | 'expired' | 'revoked') || undefined,
       group_id: filters.group_id ? Number(filters.group_id) : undefined,
       platform: (filters.platform as GroupPlatform | '') || undefined,
       sort_by: sortState.sort_by,

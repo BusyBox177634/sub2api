@@ -12,7 +12,6 @@ import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { quickMonitorAPI } from '@/api/quickMonitor'
-import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
@@ -217,6 +216,19 @@ const routes: RouteRecordRaw[] = [
       title: 'API Keys',
       titleKey: 'keys.title',
       descriptionKey: 'keys.description'
+    }
+  },
+  {
+    path: '/batch-image',
+    name: 'BatchImageGuide',
+    alias: '/docs/batch-image',
+    component: () => import('@/views/user/BatchImageGuideView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Batch Image Guide',
+      titleKey: 'batchImageGuide.title',
+      descriptionKey: 'batchImageGuide.description'
     }
   },
   {
@@ -821,7 +833,7 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal', '/404']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',
@@ -865,6 +877,7 @@ const QUICK_MONITOR_RESERVED_SUFFIXES = new Set([
   'wechat',
   'ws',
 ])
+
 function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: boolean): boolean {
   if (BACKEND_MODE_ALLOWED_PATHS.some((allowedPath) => path === allowedPath || path.startsWith(allowedPath))) {
     return true
@@ -879,17 +892,6 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   }
 
   return false
-}
-
-async function resolveUsageBriefRouteEnabled(appStore: ReturnType<typeof useAppStore>): Promise<boolean> {
-  if (!appStore.publicSettingsLoaded) {
-    await appStore.fetchPublicSettings()
-  }
-  if (isFeatureFlagEnabled(FeatureFlags.usageBrief)) {
-    return true
-  }
-  await appStore.fetchPublicSettings(true)
-  return isFeatureFlagEnabled(FeatureFlags.usageBrief)
 }
 
 async function resolveQuickMonitorRouteEnabled(suffix: string): Promise<boolean> {
@@ -1013,6 +1015,17 @@ router.beforeEach(async (to, _from, next) => {
   }
 
 
+  // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
+  // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control
+  // 误判为“未启用”而错误拦截，故这里先确保设置加载完成。
+  if ((to.meta.requiresPayment || to.meta.requiresRiskControl || to.meta.requiresUsageBrief) && !appStore.publicSettingsLoaded) {
+    try {
+      await appStore.fetchPublicSettings()
+    } catch (error) {
+      console.warn('Failed to load public settings in route guard', error)
+    }
+  }
+
   // Check payment requirement (internal payment system only)
   if (to.meta.requiresPayment) {
     const paymentEnabled = appStore.cachedPublicSettings?.payment_enabled
@@ -1031,7 +1044,8 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.requiresUsageBrief) {
-    if (!(await resolveUsageBriefRouteEnabled(appStore))) {
+    const usageBriefEnabled = appStore.cachedPublicSettings?.usage_brief_enabled === true
+    if (!usageBriefEnabled) {
       next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
       return
     }

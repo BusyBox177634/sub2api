@@ -29,9 +29,10 @@ services:
       dockerfile: Dockerfile
       args:
         NODE_IMAGE: docker.m.daocloud.io/library/node:24-alpine
-        GOLANG_IMAGE: docker.m.daocloud.io/library/golang:1.26.4-alpine
+        GOLANG_IMAGE: docker.m.daocloud.io/library/golang:1.26.5-alpine
         ALPINE_IMAGE: docker.m.daocloud.io/library/alpine:3.21
-        POSTGRES_IMAGE: postgres:18-alpine
+        POSTGRES_IMAGE: docker.m.daocloud.io/library/postgres:18-alpine
+        NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
     container_name: sub2api
     restart: unless-stopped
     ulimits:
@@ -102,6 +103,11 @@ services:
       - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
 
       # =======================================================================
+      # Setup Configuration
+      # =======================================================================
+      - SETUP_MIGRATION_TIMEOUT_SECONDS=${SETUP_MIGRATION_TIMEOUT_SECONDS:-0}
+
+      # =======================================================================
       # TOTP (2FA) Configuration
       # =======================================================================
       # IMPORTANT: Set a fixed encryption key for TOTP secrets. If left empty,
@@ -141,10 +147,10 @@ services:
       # =======================================================================
       # Enable URL allowlist validation (false to skip allowlist checks)
       - SECURITY_URL_ALLOWLIST_ENABLED=${SECURITY_URL_ALLOWLIST_ENABLED:-false}
-      # Allow insecure HTTP URLs when allowlist is disabled (default: false, requires https)
-      - SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=${SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP:-false}
-      # Allow private IP addresses for upstream/pricing/CRS (for internal deployments)
-      - SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=${SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS:-false}
+      # Allow insecure HTTP URLs when allowlist is disabled (default: true; set to false to require https)
+      - SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=${SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP:-true}
+      # Allow private IP addresses for upstream/pricing/CRS (default: true; set to false to block private hosts)
+      - SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=${SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS:-true}
       # Upstream hosts whitelist (comma-separated, only used when enabled=true)
       - SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS=${SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS:-}
 
@@ -190,7 +196,7 @@ services:
   # PostgreSQL Database
   # ===========================================================================
   postgres:
-    image: postgres:18-alpine
+    image: docker.m.daocloud.io/library/postgres:18-alpine
     container_name: sub2api-postgres
     restart: unless-stopped
     ulimits:
@@ -221,7 +227,7 @@ services:
   # Redis Cache
   # ===========================================================================
   redis:
-    image: redis:8-alpine
+    image: docker.m.daocloud.io/library/redis:8-alpine
     container_name: sub2api-redis
     restart: unless-stopped
     ulimits:

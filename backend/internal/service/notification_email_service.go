@@ -890,11 +890,6 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 			"report_start_time":   "2026-05-19 12:00",
 			"report_end_time":     "2026-05-20 12:00",
 			"report_html":         "<h2>日报</h2><p>请求量：1024</p>",
-			"brief_title":         "2026-05-19 工作日报",
-			"brief_period_type":   "日报",
-			"brief_period_start":  "2026-05-19",
-			"brief_period_end":    "2026-05-19",
-			"brief_html":          "<h2>工作概览</h2><p>完成了订单模块设计。</p>",
 		}
 	}
 	return map[string]string{
@@ -941,11 +936,6 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 		"report_start_time":   "2026-05-19 12:00",
 		"report_end_time":     "2026-05-20 12:00",
 		"report_html":         "<h2>Daily summary</h2><p>Requests: 1024</p>",
-		"brief_title":         "2026-05-19 Work daily report",
-		"brief_period_type":   "Daily report",
-		"brief_period_start":  "2026-05-19",
-		"brief_period_end":    "2026-05-19",
-		"brief_html":          "<h2>Work overview</h2><p>Completed order module design.</p>",
 	}
 }
 
@@ -1080,9 +1070,9 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 	NotificationEmailEventUsageBriefReport: {
 		Event:       NotificationEmailEventUsageBriefReport,
 		Label:       "Usage brief",
-		Description: "Sent to normal users when a daily, weekly, or monthly usage brief is generated.",
+		Description: "Sent to users when a usage brief report is generated.",
 		Category:    "usage_brief",
-		Optional:    false,
+		Optional:    true,
 		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...),
 			"brief_title", "brief_period_type", "brief_period_start", "brief_period_end", "brief_html"),
 	},
@@ -1380,20 +1370,20 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 	},
 	NotificationEmailEventUsageBriefReport: {
 		notificationEmailDefaultLocale: {
-			Subject: "[{{site_name}}] 用量简报",
-			HTML: notificationEmailCard("#2563eb", "用量简报", `
-<p>Hello {{recipient_name}},</p>
-<p><strong>{{brief_title}}</strong></p>
-<p><strong>{{brief_period_type}}</strong> · {{brief_period_start}} - {{brief_period_end}}</p>
-<div>{{brief_html}}</div>`),
+			Subject: "[{{site_name}}] Usage brief",
+			HTML: notificationEmailCard("#2563eb", "Usage brief", `
+	<p>Hello {{recipient_name}},</p>
+	<p>Your {{brief_period_type}} usage brief is ready.</p>
+	<p><strong>Period</strong>: {{brief_period_start}} - {{brief_period_end}}</p>
+	<div>{{brief_html}}</div>`),
 		},
 		notificationEmailLocaleChinese: {
 			Subject: "[{{site_name}}] 用量简报",
 			HTML: notificationEmailCard("#2563eb", "用量简报", `
-<p>{{recipient_name}}，您好：</p>
-<p><strong>{{brief_title}}</strong></p>
-<p><strong>{{brief_period_type}}</strong> · {{brief_period_start}} 至 {{brief_period_end}}</p>
-<div>{{brief_html}}</div>`),
+	<p>{{recipient_name}}，您好：</p>
+	<p>您的{{brief_period_type}}用量简报已生成。</p>
+	<p><strong>周期</strong>：{{brief_period_start}} - {{brief_period_end}}</p>
+	<div>{{brief_html}}</div>`),
 		},
 	},
 }

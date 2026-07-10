@@ -47,6 +47,9 @@ func RegisterAdminRoutes(
 		// Antigravity OAuth
 		registerAntigravityOAuthRoutes(admin, h)
 
+		// Grok OAuth
+		registerGrokOAuthRoutes(admin, h)
+
 		// 代理管理
 		registerProxyRoutes(admin, h)
 
@@ -106,38 +109,6 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
-	}
-}
-
-func registerUsageBriefRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	brief := admin.Group("/usage-brief")
-	{
-		brief.GET("/settings", h.Admin.UsageBrief.GetSettings)
-		brief.PUT("/settings", h.Admin.UsageBrief.UpdateSettings)
-		brief.GET("/report-groups", h.Admin.UsageBrief.ListReportGroups)
-		brief.DELETE("/report-groups", h.Admin.UsageBrief.DeleteReportGroup)
-		brief.GET("/reports", h.Admin.UsageBrief.ListReports)
-		brief.GET("/reports/:id", h.Admin.UsageBrief.GetReport)
-		brief.PUT("/reports/:id", h.Admin.UsageBrief.UpdateReport)
-		brief.DELETE("/reports/:id", h.Admin.UsageBrief.DeleteReport)
-		brief.GET("/batches", h.Admin.UsageBrief.ListBatches)
-		brief.GET("/batches/:id/jobs", h.Admin.UsageBrief.ListBatchJobs)
-		brief.POST("/batches/:id/pause", h.Admin.UsageBrief.PauseBatch)
-		brief.POST("/batches/:id/resume", h.Admin.UsageBrief.ResumeBatch)
-		brief.POST("/batches/:id/cancel", h.Admin.UsageBrief.CancelBatch)
-		brief.POST("/batches/:id/reset", h.Admin.UsageBrief.ResetBatch)
-		brief.POST("/batches/:id/rerun", h.Admin.UsageBrief.RerunBatch)
-		brief.DELETE("/batches/:id", h.Admin.UsageBrief.DeleteBatch)
-		brief.GET("/jobs", h.Admin.UsageBrief.ListJobs)
-		brief.POST("/jobs/production", h.Admin.UsageBrief.TriggerProduction)
-		brief.POST("/jobs/test", h.Admin.UsageBrief.CreateTestJob)
-		brief.POST("/jobs/:id/cancel", h.Admin.UsageBrief.CancelJob)
-		brief.POST("/jobs/:id/reset", h.Admin.UsageBrief.ResetJob)
-		brief.POST("/jobs/:id/rerun", h.Admin.UsageBrief.RerunJob)
-		brief.POST("/jobs/:id/send-email", h.Admin.UsageBrief.SendJobEmail)
-		brief.GET("/jobs/:id/chunks", h.Admin.UsageBrief.ListJobChunks)
-		brief.GET("/jobs/:id/conversations", h.Admin.UsageBrief.ListJobConversations)
-		brief.DELETE("/jobs/:id", h.Admin.UsageBrief.DeleteJob)
 	}
 }
 
@@ -367,6 +338,9 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Antigravity 默认模型映射
 		accounts.GET("/antigravity/default-model-mapping", h.Admin.Account.GetAntigravityDefaultModelMapping)
 
+		// Spark 影子账号
+		accounts.POST("/:id/shadow", h.Admin.OpenAIOAuth.CreateShadow)
+
 		// Claude OAuth routes
 		accounts.POST("/generate-auth-url", h.Admin.OAuth.GenerateAuthURL)
 		accounts.POST("/generate-setup-token-url", h.Admin.OAuth.GenerateSetupTokenURL)
@@ -397,6 +371,7 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		openai.POST("/refresh-token", h.Admin.OpenAIOAuth.RefreshToken)
 		openai.POST("/accounts/:id/refresh", h.Admin.OpenAIOAuth.RefreshAccountToken)
 		openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
+		openai.POST("/create-from-codex-pat", h.Admin.OpenAIOAuth.CreateAccountFromCodexPAT)
 		openai.GET("/accounts/:id/quota", h.Admin.OpenAIOAuth.QueryQuota)
 		openai.POST("/accounts/:id/reset-quota", h.Admin.OpenAIOAuth.ResetQuota)
 	}
@@ -417,6 +392,20 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		antigravity.POST("/oauth/auth-url", h.Admin.AntigravityOAuth.GenerateAuthURL)
 		antigravity.POST("/oauth/exchange-code", h.Admin.AntigravityOAuth.ExchangeCode)
 		antigravity.POST("/oauth/refresh-token", h.Admin.AntigravityOAuth.RefreshToken)
+	}
+}
+
+func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	grok := admin.Group("/grok")
+	{
+		grok.POST("/oauth/auth-url", h.Admin.GrokOAuth.GenerateAuthURL)
+		grok.POST("/oauth/exchange-code", h.Admin.GrokOAuth.ExchangeCode)
+		grok.POST("/oauth/refresh-token", h.Admin.GrokOAuth.RefreshToken)
+		grok.POST("/oauth/create-from-oauth", h.Admin.GrokOAuth.CreateAccountFromOAuth)
+		grok.POST("/accounts/:id/refresh", h.Admin.GrokOAuth.RefreshAccountToken)
+		grok.GET("/accounts/:id/quota", h.Admin.GrokOAuth.QueryQuota)
+		grok.POST("/accounts/:id/reset-quota", h.Admin.GrokOAuth.ResetQuota)
+		grok.GET("/runtime-sanity", h.Admin.GrokOAuth.RuntimeSanity)
 	}
 }
 
@@ -559,6 +548,7 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		system.GET("/version", h.Admin.System.GetVersion)
 		system.GET("/check-updates", h.Admin.System.CheckUpdates)
+		system.GET("/rollback-versions", h.Admin.System.GetRollbackVersions)
 		system.POST("/update", h.Admin.System.PerformUpdate)
 		system.POST("/rollback", h.Admin.System.Rollback)
 		system.POST("/restart", h.Admin.System.RestartService)
@@ -575,6 +565,8 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		subscriptions.POST("/bulk-assign", h.Admin.Subscription.BulkAssign)
 		subscriptions.POST("/:id/extend", h.Admin.Subscription.Extend)
 		subscriptions.POST("/:id/reset-quota", h.Admin.Subscription.ResetQuota)
+		subscriptions.POST("/:id/revoke", h.Admin.Subscription.Revoke)
+		subscriptions.POST("/:id/restore", h.Admin.Subscription.Restore)
 		subscriptions.DELETE("/:id", h.Admin.Subscription.Revoke)
 	}
 
@@ -596,6 +588,41 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)
 		usage.GET("/:id/detail", h.Admin.Usage.GetDetail)
+	}
+}
+
+func registerUsageBriefRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	brief := admin.Group("/usage-brief")
+	{
+		brief.GET("/settings", h.Admin.UsageBrief.GetSettings)
+		brief.PUT("/settings", h.Admin.UsageBrief.UpdateSettings)
+
+		brief.GET("/reports", h.Admin.UsageBrief.ListReports)
+		brief.GET("/report-groups", h.Admin.UsageBrief.ListReportGroups)
+		brief.DELETE("/report-groups", h.Admin.UsageBrief.DeleteReportGroup)
+		brief.GET("/reports/:id", h.Admin.UsageBrief.GetReport)
+		brief.PUT("/reports/:id", h.Admin.UsageBrief.UpdateReport)
+		brief.DELETE("/reports/:id", h.Admin.UsageBrief.DeleteReport)
+
+		brief.GET("/batches", h.Admin.UsageBrief.ListBatches)
+		brief.GET("/batches/:id/jobs", h.Admin.UsageBrief.ListBatchJobs)
+		brief.POST("/batches/:id/pause", h.Admin.UsageBrief.PauseBatch)
+		brief.POST("/batches/:id/resume", h.Admin.UsageBrief.ResumeBatch)
+		brief.POST("/batches/:id/cancel", h.Admin.UsageBrief.CancelBatch)
+		brief.POST("/batches/:id/reset", h.Admin.UsageBrief.ResetBatch)
+		brief.POST("/batches/:id/rerun", h.Admin.UsageBrief.RerunBatch)
+		brief.DELETE("/batches/:id", h.Admin.UsageBrief.DeleteBatch)
+
+		brief.GET("/jobs", h.Admin.UsageBrief.ListJobs)
+		brief.POST("/jobs/production", h.Admin.UsageBrief.TriggerProduction)
+		brief.POST("/jobs/test", h.Admin.UsageBrief.CreateTestJob)
+		brief.POST("/jobs/:id/cancel", h.Admin.UsageBrief.CancelJob)
+		brief.POST("/jobs/:id/reset", h.Admin.UsageBrief.ResetJob)
+		brief.POST("/jobs/:id/rerun", h.Admin.UsageBrief.RerunJob)
+		brief.POST("/jobs/:id/send-email", h.Admin.UsageBrief.SendJobEmail)
+		brief.GET("/jobs/:id/chunks", h.Admin.UsageBrief.ListJobChunks)
+		brief.GET("/jobs/:id/conversations", h.Admin.UsageBrief.ListJobConversations)
+		brief.DELETE("/jobs/:id", h.Admin.UsageBrief.DeleteJob)
 	}
 }
 

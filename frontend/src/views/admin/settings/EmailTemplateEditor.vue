@@ -287,11 +287,6 @@ const fallbackPlaceholders = [
   "{{report_start_time}}",
   "{{report_end_time}}",
   "{{report_html}}",
-  "{{brief_title}}",
-  "{{brief_period_type}}",
-  "{{brief_period_start}}",
-  "{{brief_period_end}}",
-  "{{brief_html}}",
 ];
 
 const loadingList = ref(true);
@@ -382,11 +377,6 @@ const eventDisplayMeta: Record<string, EventDisplayMeta> = {
     timing: "运维日报、周报、错误摘要或账号健康报表到达配置的发送时间时发送。",
     categoryLabel: "运维",
   },
-  "usage_brief.report": {
-    label: "用量简报",
-    timing: "生产队列中的日报、周报或月报生成完成后自动发送给对应普通用户；测试队列可在任务中手动发送。",
-    categoryLabel: "用量简报",
-  },
 };
 
 const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
@@ -450,11 +440,6 @@ const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
     timing: "Sent when a configured daily, weekly, error digest, or account health report reaches its scheduled send time.",
     categoryLabel: "Ops",
   },
-  "usage_brief.report": {
-    label: "Usage Brief",
-    timing: "Sent to the corresponding normal user when a production daily, weekly, or monthly usage brief is generated. Test jobs can be sent manually from the queue.",
-    categoryLabel: "Usage Brief",
-  },
 };
 
 function normalizeEventOption(option: EmailTemplateEventOption): EmailTemplateOption {
@@ -499,7 +484,6 @@ function formatCategory(category: string): string {
     admin: { zh: "管理告警", en: "Admin" },
     risk_control: { zh: "风控", en: "Risk Control" },
     ops: { zh: "运维", en: "Ops" },
-    usage_brief: { zh: "用量简报", en: "Usage Brief" },
   };
   const item = labels[normalized];
   return item ? localText(item.zh, item.en) : category;

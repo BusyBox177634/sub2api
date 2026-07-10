@@ -104,6 +104,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Available Channels',
   }),
+  usageBrief: defineFlag({
+    key: 'usage_brief_enabled',
+    mode: 'opt-in',
+    label: 'Usage Brief',
+  }),
   payment: defineFlag({
     key: 'payment_enabled',
     mode: 'opt-out',
@@ -113,11 +118,6 @@ export const FeatureFlags = {
     key: 'risk_control_enabled',
     mode: 'opt-in',
     label: 'Risk Control',
-  }),
-  usageBrief: defineFlag({
-    key: 'usage_brief_enabled',
-    mode: 'opt-in',
-    label: 'Usage Brief',
   }),
   affiliate: defineFlag({
     key: 'affiliate_enabled',

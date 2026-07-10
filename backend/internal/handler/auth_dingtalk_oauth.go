@@ -892,7 +892,7 @@ func (h *AuthHandler) syncDingTalkIdentity(ctx context.Context, cfg config.DingT
 			source = "name(fallback)"
 		}
 		if username != "" && h.userService != nil {
-			if _, err := h.userService.UpdateUsernameFromTrustedIdentity(ctx, userID, username); err != nil {
+			if _, err := h.userService.UpdateProfile(ctx, userID, service.UpdateProfileRequest{Username: &username}); err != nil {
 				slog.Warn("dingtalk sync: failed to update username", "user_id", userID, "err", err)
 			} else {
 				slog.Info("dingtalk sync: username updated (register)", "user_id", userID, "username", username, "source", source)

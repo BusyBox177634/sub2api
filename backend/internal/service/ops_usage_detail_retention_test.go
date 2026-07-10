@@ -44,3 +44,33 @@ func TestOpsDashboardOverviewAttachesUsageDetailRetentionStatus(t *testing.T) {
 	require.EqualValues(t, 25, overview.UsageDetailRetention.RemainingPending)
 	require.Equal(t, 75.0, overview.UsageDetailRetention.ProgressPercent)
 }
+
+func TestProvideOpsServiceWiresUsageDetailRetentionStatus(t *testing.T) {
+	start := time.Now().Add(-time.Hour)
+	end := time.Now()
+	retention := NewUsageLogDetailRetentionService(nil, nil)
+	retention.updateStatus(func(st *UsageLogDetailRetentionStatus) {
+		st.Enabled = true
+		st.Running = true
+		st.Phase = UsageLogDetailRetentionPhaseProcessing
+		st.TotalPendingAtStart = 40
+		st.RemainingPending = 10
+		st.Processed = 30
+		st.Cleaned = 30
+		st.ProgressPercent = 75
+	})
+
+	svc := ProvideOpsService(&opsRepoMock{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, retention, nil)
+
+	overview, err := svc.GetDashboardOverview(context.Background(), &OpsDashboardFilter{
+		StartTime: start,
+		EndTime:   end,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, overview.UsageDetailRetention)
+	require.True(t, overview.UsageDetailRetention.Running)
+	require.Equal(t, UsageLogDetailRetentionPhaseProcessing, overview.UsageDetailRetention.Phase)
+	require.EqualValues(t, 10, overview.UsageDetailRetention.RemainingPending)
+	require.Equal(t, 75.0, overview.UsageDetailRetention.ProgressPercent)
+}

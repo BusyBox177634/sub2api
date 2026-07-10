@@ -90,17 +90,13 @@
             <template v-for="item in displayEndpointStats" :key="item.endpoint">
               <tr
                 class="border-t border-gray-100 transition-colors dark:border-gray-700"
-                :class="allowBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
-                @click="allowBreakdown && toggleBreakdown(item.endpoint)"
+                :class="canBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
+                @click="canBreakdown && toggleBreakdown(item.endpoint)"
               >
-                <td
-                  class="max-w-[180px] truncate py-1.5 font-medium"
-                  :class="allowBreakdown ? 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300' : 'text-gray-900 dark:text-white'"
-                  :title="item.endpoint"
-                >
+                <td class="max-w-[180px] truncate py-1.5 font-medium" :class="canBreakdown ? 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300' : 'text-gray-900 dark:text-white'" :title="item.endpoint">
                   <span class="inline-flex items-center gap-1">
-                    <svg v-if="allowBreakdown && expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    <svg v-else-if="allowBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <svg v-if="canBreakdown && expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else-if="canBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ item.endpoint }}
                   </span>
                 </td>
@@ -164,6 +160,7 @@ const props = withDefaults(
     source?: EndpointSource
     showMetricToggle?: boolean
     showSourceToggle?: boolean
+    enableBreakdown?: boolean
     startDate?: string
     endDate?: string
     filters?: Record<string, any>
@@ -178,7 +175,7 @@ const props = withDefaults(
     source: 'inbound',
     showMetricToggle: false,
     showSourceToggle: false,
-    allowBreakdown: true
+    enableBreakdown: true
   }
 )
 
@@ -187,7 +184,7 @@ const emit = defineEmits<{
   'update:source': [value: EndpointSource]
 }>()
 
-const allowBreakdown = computed(() => props.allowBreakdown)
+const canBreakdown = computed(() => props.enableBreakdown && props.allowBreakdown !== false)
 
 const expandedKey = ref<string | null>(null)
 const breakdownItems = ref<UserBreakdownItem[]>([])
