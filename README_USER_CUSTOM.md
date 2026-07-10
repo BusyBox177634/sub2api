@@ -62,7 +62,7 @@
 - 自动任务会为所有普通用户生成简报：日报基于当天 usage 数据和请求 JSON，周报基于周一到周日的 7 天日报，月报按严格自然月生成并使用自然月内日报校准边界。
 - “系统设置 → 邮件设置 → 邮件模板”中新增通知邮件事件 `usage_brief.report`，显示为“用量简报”，默认主题固定为 `[{{site_name}}] 用量简报`。
 - 官方中英文模板使用现有通知邮件卡片样式，正文直接展示完整简报 HTML，不提供报告跳转链接。
-- 生产队列任务生成成功或部分成功后，会自动给对应普通用户发送日报、周报或月报邮件；测试队列不自动发送。
+- 普通用户可在用量简报页面开启“自动发送到邮箱”，默认关闭；开启后，后续生产队列任务生成成功或部分成功时，会自动给对应普通用户账号主邮箱发送日报、周报或月报邮件，测试队列不自动发送。
 - 管理员用量简报的生产与测试队列中，每个任务都会显示邮件发送状态和发送邮件按钮；邮件发送失败只记录在邮件状态中，不改变任务生成结果。
 - 生成的 Markdown 简报定位为普通用户工作总结，新生成报告标题为“工作日报”“工作周报”“工作月报”，重点凸显完成了什么模块、做了哪些设计或实现、贡献度、风险和建议；token、成本和模型等用量信息只在“用量概括”中用一句话概括。
 - 如果某个周期没有采集到任何使用记录，生成的工作日报、周报或月报会简洁说明“暂无工作情况”，不会扩写空洞内容。
@@ -131,6 +131,8 @@
 - `GET /api/v1/usage-brief/reports`：查看自己的历史简报列表。
 - `GET /api/v1/usage-brief/reports/:id`：查看自己的单篇简报。
 - `GET /api/v1/usage-brief/period?period_type=...&date=...`：按日报、周报或月报周期查看当前可用状态和报告内容。
+- `GET /api/v1/user/profile`：用户资料响应新增 `usage_brief_auto_email_enabled`，表示是否自动发送用量简报到账号主邮箱。
+- `PUT /api/v1/user`：可提交 `usage_brief_auto_email_enabled` 开启或关闭用量简报自动邮件发送。
 
 管理员接口：
 
@@ -200,6 +202,8 @@
 - `backend/migrations/163_usage_brief_job_chunks_conversation_json.sql`：为旧分片表补充临时对话 JSON 字段，用于迁移前兼容。
 - `backend/migrations/164_add_usage_brief_job_conversations.sql`：新增 `usage_brief_job_conversations`，将去重后的请求/响应合并对话从 AI 输入分片中拆出并单独分页保存。
 - `backend/migrations/165_usage_brief_partial_chunk_retry.sql`：允许任务和报告使用 `partial` 状态，并为 `usage_brief_job_chunks` 增加 `retry_count` 和 `last_error_at`。
+- `backend/migrations/166_usage_brief_email_status.sql`：为用量简报任务增加邮件发送状态字段。
+- `backend/migrations/167_usage_brief_auto_email_user_preference.sql`：为普通用户增加 `usage_brief_auto_email_enabled`，默认关闭用量简报自动邮件发送。
 - 运维快捷监控只新增系统设置项和只读路由，不新增数据库表或迁移文件。
 
 ## 行为说明与限制
@@ -223,6 +227,8 @@
 - 如果管理员关闭“运维快捷监控”或修改后缀，旧快捷地址会在下一次页面访问时失效。
 - 用量简报功能关闭时，侧边栏入口隐藏，自动生成调度和后台队列消费停止；已有报告和队列记录保留在数据库中。
 - 用量简报页面刷新时会先确认功能开关状态，避免 public settings 缓存未就绪时误跳转到系统设置。
+- 用量简报自动发送到邮箱默认关闭；普通用户开启后只影响之后完成的日报、周报和月报，不会追发历史报告，收件人为账号主邮箱而非余额通知额外邮箱。
+- 管理员手动发送用量简报邮件不受普通用户自动发送开关限制；普通用户关闭开关时仅跳过自动发送，不会把邮件状态标记为 skipped。
 - 用量简报只为普通用户生成，管理员账号不会产生日报、周报或月报。
 - 功能入口仍叫“用量简报”；新生成的日报、周报、月报内容按用户工作总结组织，历史已生成报告不会被批量改写。
 - 日报生成依赖 usage log 和 `usage_log_details.request_payload_json`；迁移前或未捕获详情的历史请求无法补齐请求内容。

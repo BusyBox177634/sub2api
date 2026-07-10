@@ -59,6 +59,8 @@ const (
 	FieldBalanceNotifyExtraEmails = "balance_notify_extra_emails"
 	// FieldTotalRecharged holds the string denoting the total_recharged field in the database.
 	FieldTotalRecharged = "total_recharged"
+	// FieldUsageBriefAutoEmailEnabled holds the string denoting the usage_brief_auto_email_enabled field in the database.
+	FieldUsageBriefAutoEmailEnabled = "usage_brief_auto_email_enabled"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -214,6 +216,7 @@ var Columns = []string{
 	FieldBalanceNotifyThreshold,
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
+	FieldUsageBriefAutoEmailEnabled,
 	FieldRpmLimit,
 }
 
@@ -283,6 +286,8 @@ var (
 	DefaultBalanceNotifyExtraEmails string
 	// DefaultTotalRecharged holds the default value on creation for the "total_recharged" field.
 	DefaultTotalRecharged float64
+	// DefaultUsageBriefAutoEmailEnabled holds the default value on creation for the "usage_brief_auto_email_enabled" field.
+	DefaultUsageBriefAutoEmailEnabled bool
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 )

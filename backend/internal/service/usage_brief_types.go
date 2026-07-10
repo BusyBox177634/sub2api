@@ -357,6 +357,7 @@ type UsageBriefSourceRecord struct {
 
 type UsageBriefRepository interface {
 	ListNormalUsers(ctx context.Context) ([]User, error)
+	IsUserUsageBriefAutoEmailEnabled(ctx context.Context, userID int64) (bool, error)
 	ListReports(ctx context.Context, filter UsageBriefReportFilter) ([]UsageBriefReport, int64, error)
 	ListReportGroups(ctx context.Context, filter UsageBriefReportGroupFilter) ([]UsageBriefReportGroup, int64, error)
 	GetReport(ctx context.Context, id int64) (*UsageBriefReport, error)

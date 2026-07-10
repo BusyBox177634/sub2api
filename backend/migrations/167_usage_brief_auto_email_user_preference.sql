@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS usage_brief_auto_email_enabled BOOLEAN NOT NULL DEFAULT FALSE;

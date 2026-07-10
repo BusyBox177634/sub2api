@@ -390,6 +390,20 @@ func (_u *UserUpdate) AddTotalRecharged(v float64) *UserUpdate {
 	return _u
 }
 
+// SetUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field.
+func (_u *UserUpdate) SetUsageBriefAutoEmailEnabled(v bool) *UserUpdate {
+	_u.mutation.SetUsageBriefAutoEmailEnabled(v)
+	return _u
+}
+
+// SetNillableUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableUsageBriefAutoEmailEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetUsageBriefAutoEmailEnabled(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *UserUpdate) SetRpmLimit(v int) *UserUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1065,6 +1079,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UsageBriefAutoEmailEnabled(); ok {
+		_spec.SetField(user.FieldUsageBriefAutoEmailEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -2039,6 +2056,20 @@ func (_u *UserUpdateOne) AddTotalRecharged(v float64) *UserUpdateOne {
 	return _u
 }
 
+// SetUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field.
+func (_u *UserUpdateOne) SetUsageBriefAutoEmailEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetUsageBriefAutoEmailEnabled(v)
+	return _u
+}
+
+// SetNillableUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableUsageBriefAutoEmailEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetUsageBriefAutoEmailEnabled(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *UserUpdateOne) SetRpmLimit(v int) *UserUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2744,6 +2775,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UsageBriefAutoEmailEnabled(); ok {
+		_spec.SetField(user.FieldUsageBriefAutoEmailEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)

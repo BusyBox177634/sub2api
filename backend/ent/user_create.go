@@ -326,6 +326,20 @@ func (_c *UserCreate) SetNillableTotalRecharged(v *float64) *UserCreate {
 	return _c
 }
 
+// SetUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field.
+func (_c *UserCreate) SetUsageBriefAutoEmailEnabled(v bool) *UserCreate {
+	_c.mutation.SetUsageBriefAutoEmailEnabled(v)
+	return _c
+}
+
+// SetNillableUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableUsageBriefAutoEmailEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetUsageBriefAutoEmailEnabled(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *UserCreate) SetRpmLimit(v int) *UserCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -634,6 +648,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultTotalRecharged
 		_c.mutation.SetTotalRecharged(v)
 	}
+	if _, ok := _c.mutation.UsageBriefAutoEmailEnabled(); !ok {
+		v := user.DefaultUsageBriefAutoEmailEnabled
+		_c.mutation.SetUsageBriefAutoEmailEnabled(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := user.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -720,6 +738,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.TotalRecharged(); !ok {
 		return &ValidationError{Name: "total_recharged", err: errors.New(`ent: missing required field "User.total_recharged"`)}
+	}
+	if _, ok := _c.mutation.UsageBriefAutoEmailEnabled(); !ok {
+		return &ValidationError{Name: "usage_brief_auto_email_enabled", err: errors.New(`ent: missing required field "User.usage_brief_auto_email_enabled"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "User.rpm_limit"`)}
@@ -838,6 +859,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TotalRecharged(); ok {
 		_spec.SetField(user.FieldTotalRecharged, field.TypeFloat64, value)
 		_node.TotalRecharged = value
+	}
+	if value, ok := _c.mutation.UsageBriefAutoEmailEnabled(); ok {
+		_spec.SetField(user.FieldUsageBriefAutoEmailEnabled, field.TypeBool, value)
+		_node.UsageBriefAutoEmailEnabled = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -1419,6 +1444,18 @@ func (u *UserUpsert) AddTotalRecharged(v float64) *UserUpsert {
 	return u
 }
 
+// SetUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field.
+func (u *UserUpsert) SetUsageBriefAutoEmailEnabled(v bool) *UserUpsert {
+	u.Set(user.FieldUsageBriefAutoEmailEnabled, v)
+	return u
+}
+
+// UpdateUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field to the value that was provided on create.
+func (u *UserUpsert) UpdateUsageBriefAutoEmailEnabled() *UserUpsert {
+	u.SetExcluded(user.FieldUsageBriefAutoEmailEnabled)
+	return u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *UserUpsert) SetRpmLimit(v int) *UserUpsert {
 	u.Set(user.FieldRpmLimit, v)
@@ -1843,6 +1880,20 @@ func (u *UserUpsertOne) AddTotalRecharged(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTotalRecharged() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotalRecharged()
+	})
+}
+
+// SetUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field.
+func (u *UserUpsertOne) SetUsageBriefAutoEmailEnabled(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUsageBriefAutoEmailEnabled(v)
+	})
+}
+
+// UpdateUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateUsageBriefAutoEmailEnabled() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUsageBriefAutoEmailEnabled()
 	})
 }
 
@@ -2439,6 +2490,20 @@ func (u *UserUpsertBulk) AddTotalRecharged(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTotalRecharged() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotalRecharged()
+	})
+}
+
+// SetUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field.
+func (u *UserUpsertBulk) SetUsageBriefAutoEmailEnabled(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUsageBriefAutoEmailEnabled(v)
+	})
+}
+
+// UpdateUsageBriefAutoEmailEnabled sets the "usage_brief_auto_email_enabled" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateUsageBriefAutoEmailEnabled() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUsageBriefAutoEmailEnabled()
 	})
 }
 

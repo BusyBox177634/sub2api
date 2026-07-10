@@ -91,6 +91,7 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetBalance(userIn.Balance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
+		SetUsageBriefAutoEmailEnabled(userIn.UsageBriefAutoEmailEnabled).
 		SetSignupSource(userSignupSourceOrDefault(userIn.SignupSource)).
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
@@ -239,6 +240,7 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold).
 		SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails)).
 		SetTotalRecharged(userIn.TotalRecharged).
+		SetUsageBriefAutoEmailEnabled(userIn.UsageBriefAutoEmailEnabled).
 		SetRpmLimit(userIn.RPMLimit)
 	if userIn.SignupSource != "" {
 		updateOp = updateOp.SetSignupSource(userIn.SignupSource)
@@ -1009,6 +1011,7 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 		dst.BalanceNotifyExtraEmails = service.ParseNotifyEmails(src.BalanceNotifyExtraEmails)
 	}
 	dst.TotalRecharged = src.TotalRecharged
+	dst.UsageBriefAutoEmailEnabled = src.UsageBriefAutoEmailEnabled
 	dst.RPMLimit = src.RpmLimit
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt

@@ -28,9 +28,33 @@ func (s *UsageBriefService) sendProductionJobEmailIfNeeded(ctx context.Context, 
 	if job.Status != UsageBriefStatusSucceeded && job.Status != UsageBriefStatusPartial {
 		return
 	}
+	if !s.shouldAutoSendProductionJobEmail(ctx, *job) {
+		return
+	}
 	if _, err := s.SendJobEmail(ctx, jobID); err != nil {
 		logger.LegacyPrintf("service.usage_brief", "send usage brief email failed: job_id=%d err=%v", jobID, err)
 	}
+}
+
+func (s *UsageBriefService) shouldAutoSendProductionJobEmail(ctx context.Context, job UsageBriefJob) bool {
+	if s == nil || s.repo == nil {
+		return false
+	}
+	if job.JobScope != UsageBriefJobScopeProduction {
+		return false
+	}
+	if job.Status != UsageBriefStatusSucceeded && job.Status != UsageBriefStatusPartial {
+		return false
+	}
+	if job.UserID == nil || *job.UserID <= 0 {
+		return false
+	}
+	enabled, err := s.repo.IsUserUsageBriefAutoEmailEnabled(ctx, *job.UserID)
+	if err != nil {
+		logger.LegacyPrintf("service.usage_brief", "load usage brief auto email preference failed: job_id=%d user_id=%d err=%v", job.ID, *job.UserID, err)
+		return false
+	}
+	return enabled
 }
 
 func (s *UsageBriefService) SendJobEmail(ctx context.Context, jobID int64) (*UsageBriefJob, error) {

@@ -59,6 +59,76 @@ func TestUsageBriefReportWhere_DefaultSearchIncludesTitle(t *testing.T) {
 	}
 }
 
+func TestUsageBriefRepositoryIsUserUsageBriefAutoEmailEnabled(t *testing.T) {
+	t.Run("enabled", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+		if err != nil {
+			t.Fatalf("new sqlmock: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		repo := &usageBriefRepository{db: db}
+		mock.ExpectQuery("SELECT usage_brief_auto_email_enabled[\\s\\S]*FROM users[\\s\\S]*WHERE id = \\$1 AND deleted_at IS NULL").
+			WithArgs(int64(12)).
+			WillReturnRows(sqlmock.NewRows([]string{"usage_brief_auto_email_enabled"}).AddRow(true))
+
+		enabled, err := repo.IsUserUsageBriefAutoEmailEnabled(context.Background(), 12)
+		if err != nil {
+			t.Fatalf("query preference: %v", err)
+		}
+		if !enabled {
+			t.Fatalf("expected enabled preference")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("unmet sql expectations: %v", err)
+		}
+	})
+
+	t.Run("missing user", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+		if err != nil {
+			t.Fatalf("new sqlmock: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		repo := &usageBriefRepository{db: db}
+		mock.ExpectQuery("SELECT usage_brief_auto_email_enabled[\\s\\S]*FROM users[\\s\\S]*WHERE id = \\$1 AND deleted_at IS NULL").
+			WithArgs(int64(99)).
+			WillReturnRows(sqlmock.NewRows([]string{"usage_brief_auto_email_enabled"}))
+
+		enabled, err := repo.IsUserUsageBriefAutoEmailEnabled(context.Background(), 99)
+		if err != nil {
+			t.Fatalf("query preference: %v", err)
+		}
+		if enabled {
+			t.Fatalf("expected missing user preference to be disabled")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("unmet sql expectations: %v", err)
+		}
+	})
+
+	t.Run("invalid user id", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+		if err != nil {
+			t.Fatalf("new sqlmock: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		repo := &usageBriefRepository{db: db}
+		enabled, err := repo.IsUserUsageBriefAutoEmailEnabled(context.Background(), 0)
+		if err != nil {
+			t.Fatalf("query preference: %v", err)
+		}
+		if enabled {
+			t.Fatalf("expected invalid user id preference to be disabled")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("unmet sql expectations: %v", err)
+		}
+	})
+}
+
 func TestUsageBriefRepositoryCreateBatch_EmptyNotesWritesEmptyString(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {

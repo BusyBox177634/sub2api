@@ -18,6 +18,21 @@
       </div>
 
       <div class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">自动发送到邮箱</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              开启后，新生成的日报、周报和月报会自动发送到 {{ profileEmail || '当前账号邮箱' }}。
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 dark:text-gray-400">{{ autoEmailEnabled ? '已开启' : '已关闭' }}</span>
+            <Toggle :model-value="autoEmailEnabled" :disabled="profileLoading || savingAutoEmail" @update:model-value="toggleAutoEmail" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-5">
         <div v-if="loading" class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
           加载中...
         </div>
@@ -83,7 +98,9 @@
 import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import MarkdownContent from '@/components/common/MarkdownContent.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import { usageBriefAPI, type UsageBriefPeriodType, type UsageBriefPeriodView, type UsageBriefReport } from '@/api/usageBrief'
+import userAPI from '@/api/user'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
@@ -92,6 +109,10 @@ const periodDate = ref(new Date().toISOString().slice(0, 10))
 const loading = ref(false)
 const view = ref<UsageBriefPeriodView | null>(null)
 const reports = ref<UsageBriefReport[]>([])
+const autoEmailEnabled = ref(false)
+const savingAutoEmail = ref(false)
+const profileLoading = ref(false)
+const profileEmail = ref('')
 
 const statusHint = computed(() => {
   if (view.value?.reason === 'generating') return '后台正在生成，请稍后刷新。'
@@ -140,6 +161,37 @@ async function loadReports() {
   }
 }
 
+async function loadProfile() {
+  profileLoading.value = true
+  try {
+    const profile = await userAPI.getProfile()
+    autoEmailEnabled.value = profile.usage_brief_auto_email_enabled === true
+    profileEmail.value = profile.email || ''
+  } catch (error: any) {
+    appStore.showError(error?.message || '加载邮箱发送设置失败')
+  } finally {
+    profileLoading.value = false
+  }
+}
+
+async function toggleAutoEmail(value: boolean) {
+  if (savingAutoEmail.value) return
+  const previous = autoEmailEnabled.value
+  autoEmailEnabled.value = value
+  savingAutoEmail.value = true
+  try {
+    const updated = await userAPI.updateProfile({ usage_brief_auto_email_enabled: value })
+    autoEmailEnabled.value = updated.usage_brief_auto_email_enabled === true
+    profileEmail.value = updated.email || profileEmail.value
+    appStore.showSuccess(value ? '已开启自动发送到邮箱' : '已关闭自动发送到邮箱')
+  } catch (error: any) {
+    autoEmailEnabled.value = previous
+    appStore.showError(error?.message || '保存邮箱发送设置失败')
+  } finally {
+    savingAutoEmail.value = false
+  }
+}
+
 async function openReport(id: number) {
   loading.value = true
   try {
@@ -160,6 +212,6 @@ async function openReport(id: number) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadPeriod(), loadReports()])
+  await Promise.all([loadProfile(), loadPeriod(), loadReports()])
 })
 </script>

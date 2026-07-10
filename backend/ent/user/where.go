@@ -165,6 +165,11 @@ func TotalRecharged(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTotalRecharged, v))
 }
 
+// UsageBriefAutoEmailEnabled applies equality check predicate on the "usage_brief_auto_email_enabled" field. It's identical to UsageBriefAutoEmailEnabledEQ.
+func UsageBriefAutoEmailEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldUsageBriefAutoEmailEnabled, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRpmLimit, v))
@@ -1263,6 +1268,16 @@ func BalanceNotifyExtraEmailsContainsFold(v string) predicate.User {
 // TotalRechargedEQ applies the EQ predicate on the "total_recharged" field.
 func TotalRechargedEQ(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTotalRecharged, v))
+}
+
+// UsageBriefAutoEmailEnabledEQ applies the EQ predicate on the "usage_brief_auto_email_enabled" field.
+func UsageBriefAutoEmailEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldUsageBriefAutoEmailEnabled, v))
+}
+
+// UsageBriefAutoEmailEnabledNEQ applies the NEQ predicate on the "usage_brief_auto_email_enabled" field.
+func UsageBriefAutoEmailEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldUsageBriefAutoEmailEnabled, v))
 }
 
 // TotalRechargedNEQ applies the NEQ predicate on the "total_recharged" field.

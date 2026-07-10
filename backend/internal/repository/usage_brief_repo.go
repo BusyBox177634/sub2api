@@ -24,6 +24,22 @@ func NewUsageBriefRepository(db *sql.DB) service.UsageBriefRepository {
 	return &usageBriefRepository{db: db}
 }
 
+func (r *usageBriefRepository) IsUserUsageBriefAutoEmailEnabled(ctx context.Context, userID int64) (bool, error) {
+	if userID <= 0 {
+		return false, nil
+	}
+	var enabled bool
+	err := r.db.QueryRowContext(ctx, `
+SELECT usage_brief_auto_email_enabled
+FROM users
+WHERE id = $1 AND deleted_at IS NULL
+`, userID).Scan(&enabled)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return enabled, err
+}
+
 func (r *usageBriefRepository) ListNormalUsers(ctx context.Context) ([]service.User, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, email, username, role, status, created_at, updated_at

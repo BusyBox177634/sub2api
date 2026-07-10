@@ -706,6 +706,32 @@ func TestUpdateProfileRejectsUsernameChange(t *testing.T) {
 	require.Equal(t, 0, repo.updateCalls)
 }
 
+func TestUpdateProfileUpdatesUsageBriefAutoEmailPreference(t *testing.T) {
+	enabled := true
+	var saved *User
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:       12,
+			Email:    "profile@example.com",
+			Username: "profile-user",
+		},
+		updateFn: func(_ context.Context, user *User) error {
+			cloned := *user
+			saved = &cloned
+			return nil
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 12, UpdateProfileRequest{UsageBriefAutoEmailEnabled: &enabled})
+
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.True(t, saved.UsageBriefAutoEmailEnabled)
+	require.True(t, updated.UsageBriefAutoEmailEnabled)
+	require.Equal(t, 1, repo.updateCalls)
+}
+
 func TestUpdateUsernameFromTrustedIdentityUpdatesUsername(t *testing.T) {
 	var saved *User
 	repo := &mockUserRepo{
