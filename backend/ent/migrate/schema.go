@@ -1683,6 +1683,33 @@ var (
 			},
 		},
 	}
+	// UsageLogDetailsColumns holds the columns for the "usage_log_details" table.
+	UsageLogDetailsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "request_payload_json", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "response_payload_json", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "request_payload_bytes", Type: field.TypeInt, Nullable: true},
+		{Name: "response_payload_bytes", Type: field.TypeInt, Nullable: true},
+		{Name: "request_truncated", Type: field.TypeBool, Default: false},
+		{Name: "response_truncated", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "usage_log_id", Type: field.TypeInt64, Unique: true},
+	}
+	// UsageLogDetailsTable holds the schema information for the "usage_log_details" table.
+	UsageLogDetailsTable = &schema.Table{
+		Name:       "usage_log_details",
+		Columns:    UsageLogDetailsColumns,
+		PrimaryKey: []*schema.Column{UsageLogDetailsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "usage_log_details_usage_logs_detail",
+				Columns:    []*schema.Column{UsageLogDetailsColumns[9]},
+				RefColumns: []*schema.Column{UsageLogsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1710,6 +1737,7 @@ var (
 		{Name: "balance_notify_extra_emails", Type: field.TypeString, Default: "[]", SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "total_recharged", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "usage_brief_auto_email_enabled", Type: field.TypeBool, Default: false},
+		{Name: "usage_brief_page_enabled", Type: field.TypeBool, Default: true},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 	}
 	// UsersTable holds the schema information for the "users" table.
@@ -2019,6 +2047,7 @@ var (
 		TLSFingerprintProfilesTable,
 		UsageCleanupTasksTable,
 		UsageLogsTable,
+		UsageLogDetailsTable,
 		UsersTable,
 		UserAllowedGroupsTable,
 		UserAttributeDefinitionsTable,
@@ -2151,6 +2180,10 @@ func init() {
 	UsageLogsTable.ForeignKeys[4].RefTable = UserSubscriptionsTable
 	UsageLogsTable.Annotation = &entsql.Annotation{
 		Table: "usage_logs",
+	}
+	UsageLogDetailsTable.ForeignKeys[0].RefTable = UsageLogsTable
+	UsageLogDetailsTable.Annotation = &entsql.Annotation{
+		Table: "usage_log_details",
 	}
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",

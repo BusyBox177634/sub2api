@@ -25,6 +25,7 @@ const appStore = vi.hoisted(() => ({
   cachedPublicSettings: null as null | {
     payment_enabled?: boolean
     risk_control_enabled?: boolean
+    usage_brief_enabled?: boolean
     custom_menu_items?: []
   },
   fetchPublicSettings: vi.fn(),
@@ -142,6 +143,7 @@ describe('feature route guard', () => {
   it.each([
     ['payment', { requiresPayment: true }, '/purchase'],
     ['risk control', { requiresRiskControl: true }, '/admin/risk-control'],
+    ['usage brief', { requiresUsageBrief: true }, '/usage-brief'],
   ])('does not treat a failed %s settings load as explicitly disabled', async (_name, meta, path) => {
     authStore.isAdmin = meta.requiresRiskControl === true
     appStore.fetchPublicSettings.mockResolvedValue(null)
@@ -162,6 +164,7 @@ describe('feature route guard', () => {
       { risk_control_enabled: false },
       '/admin/settings',
     ],
+    ['usage brief', { requiresUsageBrief: true }, { usage_brief_enabled: false }, '/dashboard'],
   ])('redirects when loaded settings explicitly disable %s', async (_name, meta, settings, target) => {
     authStore.isAdmin = meta.requiresRiskControl === true
     appStore.cachedPublicSettings = settings
@@ -173,5 +176,38 @@ describe('feature route guard', () => {
     expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith(target)
+  })
+
+  it('allows usage brief access when loaded settings enable the global feature', async () => {
+    appStore.cachedPublicSettings = { usage_brief_enabled: true }
+    appStore.publicSettingsLoaded = true
+
+    const { navigation, next } = runGuard({ requiresUsageBrief: true }, '/usage-brief')
+    await navigation
+
+    expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('waits for public settings before deciding usage brief access', async () => {
+    const deferred = createDeferred<{ usage_brief_enabled: boolean }>()
+    appStore.fetchPublicSettings.mockImplementation(async () => {
+      const settings = await deferred.promise
+      appStore.cachedPublicSettings = settings
+      appStore.publicSettingsLoaded = true
+      return settings
+    })
+
+    const { navigation, next } = runGuard({ requiresUsageBrief: true }, '/usage-brief')
+
+    await vi.waitFor(() => expect(appStore.fetchPublicSettings).toHaveBeenCalledTimes(1))
+    expect(next).not.toHaveBeenCalled()
+
+    deferred.resolve({ usage_brief_enabled: true })
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
   })
 })

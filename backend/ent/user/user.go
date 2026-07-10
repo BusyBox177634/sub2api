@@ -63,6 +63,8 @@ const (
 	FieldTotalRecharged = "total_recharged"
 	// FieldUsageBriefAutoEmailEnabled holds the string denoting the usage_brief_auto_email_enabled field in the database.
 	FieldUsageBriefAutoEmailEnabled = "usage_brief_auto_email_enabled"
+	// FieldUsageBriefPageEnabled holds the string denoting the usage_brief_page_enabled field in the database.
+	FieldUsageBriefPageEnabled = "usage_brief_page_enabled"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -220,6 +222,7 @@ var Columns = []string{
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
 	FieldUsageBriefAutoEmailEnabled,
+	FieldUsageBriefPageEnabled,
 	FieldRpmLimit,
 }
 
@@ -293,6 +296,8 @@ var (
 	DefaultTotalRecharged float64
 	// DefaultUsageBriefAutoEmailEnabled holds the default value on creation for the "usage_brief_auto_email_enabled" field.
 	DefaultUsageBriefAutoEmailEnabled bool
+	// DefaultUsageBriefPageEnabled holds the default value on creation for the "usage_brief_page_enabled" field.
+	DefaultUsageBriefPageEnabled bool
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 )
@@ -418,6 +423,16 @@ func ByBalanceNotifyExtraEmails(opts ...sql.OrderTermOption) OrderOption {
 // ByTotalRecharged orders the results by the total_recharged field.
 func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTotalRecharged, opts...).ToFunc()
+}
+
+// ByUsageBriefAutoEmailEnabled orders the results by the usage_brief_auto_email_enabled field.
+func ByUsageBriefAutoEmailEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsageBriefAutoEmailEnabled, opts...).ToFunc()
+}
+
+// ByUsageBriefPageEnabled orders the results by the usage_brief_page_enabled field.
+func ByUsageBriefPageEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsageBriefPageEnabled, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

@@ -12,6 +12,7 @@ import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { quickMonitorAPI } from '@/api/quickMonitor'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
@@ -1046,12 +1047,14 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  if (to.meta.requiresUsageBrief) {
-    const usageBriefEnabled = appStore.cachedPublicSettings?.usage_brief_enabled === true
-    if (!usageBriefEnabled) {
-      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
-      return
-    }
+  if (
+    to.meta.requiresUsageBrief &&
+    appStore.publicSettingsLoaded &&
+    appStore.cachedPublicSettings &&
+    !isFeatureFlagEnabled(FeatureFlags.usageBrief)
+  ) {
+    next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+    return
   }
 
   // 简易模式下限制访问某些页面

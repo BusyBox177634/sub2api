@@ -243,6 +243,7 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails)).
 		SetTotalRecharged(userIn.TotalRecharged).
 		SetUsageBriefAutoEmailEnabled(userIn.UsageBriefAutoEmailEnabled).
+		SetUsageBriefPageEnabled(userIn.UsageBriefPageEnabled).
 		SetRpmLimit(userIn.RPMLimit)
 	if userIn.SignupSource != "" {
 		updateOp = updateOp.SetSignupSource(userIn.SignupSource)
@@ -274,7 +275,7 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		}
 	}
 
-	userIn.UpdatedAt = updated.UpdatedAt
+	applyUserEntityToService(userIn, updated)
 	return nil
 }
 
@@ -1052,6 +1053,7 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.PasswordHash = src.PasswordHash
 	dst.Role = src.Role
 	dst.Balance = src.Balance
+	dst.FrozenBalance = src.FrozenBalance
 	dst.Concurrency = src.Concurrency
 	dst.Status = src.Status
 	dst.SignupSource = src.SignupSource
@@ -1067,6 +1069,7 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	}
 	dst.TotalRecharged = src.TotalRecharged
 	dst.UsageBriefAutoEmailEnabled = src.UsageBriefAutoEmailEnabled
+	dst.UsageBriefPageEnabled = src.UsageBriefPageEnabled
 	dst.RPMLimit = src.RpmLimit
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt

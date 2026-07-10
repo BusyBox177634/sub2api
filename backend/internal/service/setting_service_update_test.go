@@ -432,65 +432,6 @@ func TestSettingService_GetAntigravityUserAgentVersion_Precedence(t *testing.T) 
 	})
 }
 
-func TestSettingService_UpdateSettings_AntigravityUserAgentVersion(t *testing.T) {
-	repo := &settingUpdateRepoStub{}
-	svc := NewSettingService(repo, &config.Config{})
-
-	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		AntigravityUserAgentVersion: "1.23.2",
-	})
-	require.NoError(t, err)
-	require.Equal(t, "1.23.2", repo.updates[SettingKeyAntigravityUserAgentVersion])
-}
-
-func TestSettingService_UpdateSettings_APIKeyACLTrustForwardedIPRefreshesConfig(t *testing.T) {
-	repo := &settingUpdateRepoStub{}
-	cfg := &config.Config{}
-	svc := NewSettingService(repo, cfg)
-
-	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		APIKeyACLTrustForwardedIP: true,
-	})
-	require.NoError(t, err)
-	require.Equal(t, "true", repo.updates[SettingKeyAPIKeyACLTrustForwardedIP])
-	require.True(t, cfg.Security.TrustForwardedIPForAPIKeyACL)
-	require.True(t, cfg.TrustForwardedIPForAPIKeyACL())
-}
-
-func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPFallsBackToConfigWhenMissing(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Security.TrustForwardedIPForAPIKeyACL = true
-	svc := NewSettingService(&settingUpdateRepoStub{}, cfg)
-
-	got := svc.parseSettings(map[string]string{})
-
-	require.True(t, got.APIKeyACLTrustForwardedIP)
-}
-
-func TestSettingService_GetAntigravityUserAgentVersion_Precedence(t *testing.T) {
-	t.Run("后台设置优先", func(t *testing.T) {
-		svc := NewSettingService(&settingAntigravityUARepoStub{values: map[string]string{
-			SettingKeyAntigravityUserAgentVersion: "1.24.0",
-		}}, &config.Config{})
-
-		require.Equal(t, "1.24.0", svc.GetAntigravityUserAgentVersion(context.Background()))
-	})
-
-	t.Run("空值回退配置默认值", func(t *testing.T) {
-		svc := NewSettingService(&settingAntigravityUARepoStub{values: map[string]string{
-			SettingKeyAntigravityUserAgentVersion: "",
-		}}, &config.Config{})
-
-		require.Equal(t, antigravity.GetDefaultUserAgentVersion(), svc.GetAntigravityUserAgentVersion(context.Background()))
-	})
-
-	t.Run("缺失回退配置默认值", func(t *testing.T) {
-		svc := NewSettingService(&settingAntigravityUARepoStub{values: map[string]string{}}, &config.Config{})
-
-		require.Equal(t, antigravity.GetDefaultUserAgentVersion(), svc.GetAntigravityUserAgentVersion(context.Background()))
-	})
-}
-
 func TestSettingService_UpdateSettings_RejectsInvalidPaymentVisibleMethodSource(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})

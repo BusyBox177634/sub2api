@@ -75,12 +75,17 @@ func TestAuthIdentityFoundationSchemas(t *testing.T) {
 	requireHasUniqueIndex(t, adoptionDecision, "pending_auth_session_id")
 
 	userSchema := requireSchema(t, schemas, "User")
-	requireSchemaFields(t, userSchema, "signup_source", "last_login_at", "last_active_at")
+	requireSchemaFields(t, userSchema, "signup_source", "last_login_at", "last_active_at", "usage_brief_page_enabled")
 	signupSource := requireSchemaField(t, userSchema, "signup_source")
 	require.Equal(t, field.TypeString, signupSource.Info.Type)
 	require.True(t, signupSource.Default)
 	require.Equal(t, "email", signupSource.DefaultValue)
 	require.Equal(t, 1, signupSource.Validators)
+
+	usageBriefPageEnabled := requireSchemaField(t, userSchema, "usage_brief_page_enabled")
+	require.Equal(t, field.TypeBool, usageBriefPageEnabled.Info.Type)
+	require.True(t, usageBriefPageEnabled.Default)
+	require.Equal(t, true, usageBriefPageEnabled.DefaultValue)
 
 	validator := requireStringFieldValidator(t, User{}.Fields(), "signup_source")
 	for _, value := range []string{"email", "linuxdo", "wechat", "oidc", "github", "google", "dingtalk"} {

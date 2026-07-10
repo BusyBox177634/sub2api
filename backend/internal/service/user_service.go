@@ -193,6 +193,7 @@ type UpdateProfileRequest struct {
 	BalanceNotifyEnabled       *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold     *float64 `json:"balance_notify_threshold"`
 	UsageBriefAutoEmailEnabled *bool    `json:"usage_brief_auto_email_enabled"`
+	UsageBriefPageEnabled      *bool    `json:"usage_brief_page_enabled"`
 }
 
 type UserAvatar struct {
@@ -504,6 +505,12 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 	}
 	if req.UsageBriefAutoEmailEnabled != nil {
 		user.UsageBriefAutoEmailEnabled = *req.UsageBriefAutoEmailEnabled
+	}
+	if req.UsageBriefPageEnabled != nil {
+		user.UsageBriefPageEnabled = *req.UsageBriefPageEnabled
+		if !*req.UsageBriefPageEnabled {
+			user.UsageBriefAutoEmailEnabled = false
+		}
 	}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {

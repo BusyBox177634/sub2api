@@ -82,6 +82,7 @@ type UpdateProfileRequest struct {
 	BalanceNotifyEnabled       *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold     *float64 `json:"balance_notify_threshold"`
 	UsageBriefAutoEmailEnabled *bool    `json:"usage_brief_auto_email_enabled"`
+	UsageBriefPageEnabled      *bool    `json:"usage_brief_page_enabled"`
 }
 
 type userProfileResponse struct {
@@ -180,6 +181,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		BalanceNotifyEnabled:       req.BalanceNotifyEnabled,
 		BalanceNotifyThreshold:     req.BalanceNotifyThreshold,
 		UsageBriefAutoEmailEnabled: req.UsageBriefAutoEmailEnabled,
+		UsageBriefPageEnabled:      req.UsageBriefPageEnabled,
 	}
 	updatedUser, err := h.userService.UpdateProfile(c.Request.Context(), subject.UserID, svcReq)
 	if err != nil {

@@ -1,6 +1,19 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <div class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">启用用量简报</h2>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 dark:text-gray-400">{{ pageEnabledStatusLabel }}</span>
+            <Toggle :model-value="pageEnabled" :disabled="!profileLoaded || profileLoading || savingPageEnabled" @update:model-value="togglePageEnabled" />
+          </div>
+        </div>
+      </div>
+
+      <template v-if="profileLoaded && pageEnabled">
       <div class="flex flex-wrap items-end gap-3">
         <div>
           <label class="input-label">类型</label>
@@ -90,6 +103,7 @@
           </table>
         </div>
       </div>
+      </template>
     </div>
   </AppLayout>
 </template>
@@ -109,10 +123,19 @@ const periodDate = ref(new Date().toISOString().slice(0, 10))
 const loading = ref(false)
 const view = ref<UsageBriefPeriodView | null>(null)
 const reports = ref<UsageBriefReport[]>([])
+const pageEnabledPreference = ref<boolean | null>(null)
+const profileLoaded = ref(false)
+const savingPageEnabled = ref(false)
 const autoEmailEnabled = ref(false)
 const savingAutoEmail = ref(false)
 const profileLoading = ref(false)
 const profileEmail = ref('')
+
+const pageEnabled = computed(() => pageEnabledPreference.value !== false)
+const pageEnabledStatusLabel = computed(() => {
+  if (!profileLoaded.value || profileLoading.value) return '加载中'
+  return pageEnabled.value ? '已开启' : '已关闭'
+})
 
 const statusHint = computed(() => {
   if (view.value?.reason === 'generating') return '后台正在生成，请稍后刷新。'
@@ -142,6 +165,7 @@ function statusLabel(value: string) {
 }
 
 async function loadPeriod() {
+  if (!pageEnabled.value) return
   loading.value = true
   try {
     view.value = await usageBriefAPI.getPeriod(periodType.value, periodDate.value)
@@ -153,6 +177,7 @@ async function loadPeriod() {
 }
 
 async function loadReports() {
+  if (!pageEnabled.value) return
   try {
     const res = await usageBriefAPI.listReports({ page: 1, page_size: 20, period_type: periodType.value })
     reports.value = res.items || []
@@ -161,16 +186,51 @@ async function loadReports() {
   }
 }
 
-async function loadProfile() {
+async function loadProfile(): Promise<boolean> {
   profileLoading.value = true
+  let shouldLoadBriefs = false
   try {
     const profile = await userAPI.getProfile()
+    pageEnabledPreference.value = profile.usage_brief_page_enabled === false ? false : true
+    shouldLoadBriefs = pageEnabled.value
     autoEmailEnabled.value = profile.usage_brief_auto_email_enabled === true
     profileEmail.value = profile.email || ''
   } catch (error: any) {
+    pageEnabledPreference.value = true
     appStore.showError(error?.message || '加载邮箱发送设置失败')
   } finally {
+    profileLoaded.value = true
     profileLoading.value = false
+  }
+  return shouldLoadBriefs
+}
+
+async function togglePageEnabled(value: boolean) {
+  if (savingPageEnabled.value) return
+  const previousPageEnabledPreference = pageEnabledPreference.value
+  const previousAutoEmailEnabled = autoEmailEnabled.value
+  pageEnabledPreference.value = value
+  savingPageEnabled.value = true
+  if (!value) {
+    autoEmailEnabled.value = false
+    view.value = null
+    reports.value = []
+  }
+  try {
+    const updated = await userAPI.updateProfile({ usage_brief_page_enabled: value })
+    pageEnabledPreference.value = updated.usage_brief_page_enabled === false ? false : true
+    autoEmailEnabled.value = updated.usage_brief_auto_email_enabled === true
+    profileEmail.value = updated.email || profileEmail.value
+    appStore.showSuccess(value ? '已开启用量简报' : '已关闭用量简报')
+    if (pageEnabled.value) {
+      await Promise.all([loadPeriod(), loadReports()])
+    }
+  } catch (error: any) {
+    pageEnabledPreference.value = previousPageEnabledPreference
+    autoEmailEnabled.value = previousAutoEmailEnabled
+    appStore.showError(error?.message || '保存用量简报设置失败')
+  } finally {
+    savingPageEnabled.value = false
   }
 }
 
@@ -193,6 +253,7 @@ async function toggleAutoEmail(value: boolean) {
 }
 
 async function openReport(id: number) {
+  if (!pageEnabled.value) return
   loading.value = true
   try {
     const report = await usageBriefAPI.getReport(id)
@@ -212,6 +273,9 @@ async function openReport(id: number) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadProfile(), loadPeriod(), loadReports()])
+  const shouldLoadBriefs = await loadProfile()
+  if (shouldLoadBriefs) {
+    await Promise.all([loadPeriod(), loadReports()])
+  }
 })
 </script>

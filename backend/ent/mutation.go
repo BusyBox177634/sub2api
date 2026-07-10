@@ -45,6 +45,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/tlsfingerprintprofile"
 	"github.com/Wei-Shaw/sub2api/ent/usagecleanuptask"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
+	"github.com/Wei-Shaw/sub2api/ent/usagelogdetail"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
@@ -95,6 +96,7 @@ const (
 	TypeTLSFingerprintProfile         = "TLSFingerprintProfile"
 	TypeUsageCleanupTask              = "UsageCleanupTask"
 	TypeUsageLog                      = "UsageLog"
+	TypeUsageLogDetail                = "UsageLogDetail"
 	TypeUser                          = "User"
 	TypeUserAllowedGroup              = "UserAllowedGroup"
 	TypeUserAttributeDefinition       = "UserAttributeDefinition"
@@ -41730,6 +41732,8 @@ type UsageLogMutation struct {
 	clearedgroup                bool
 	subscription                *int64
 	clearedsubscription         bool
+	detail                      *int64
+	cleareddetail               bool
 	done                        bool
 	oldValue                    func(context.Context) (*UsageLog, error)
 	predicates                  []predicate.UsageLog
@@ -44237,6 +44241,45 @@ func (m *UsageLogMutation) ResetSubscription() {
 	m.clearedsubscription = false
 }
 
+// SetDetailID sets the "detail" edge to the UsageLogDetail entity by id.
+func (m *UsageLogMutation) SetDetailID(id int64) {
+	m.detail = &id
+}
+
+// ClearDetail clears the "detail" edge to the UsageLogDetail entity.
+func (m *UsageLogMutation) ClearDetail() {
+	m.cleareddetail = true
+}
+
+// DetailCleared reports if the "detail" edge to the UsageLogDetail entity was cleared.
+func (m *UsageLogMutation) DetailCleared() bool {
+	return m.cleareddetail
+}
+
+// DetailID returns the "detail" edge ID in the mutation.
+func (m *UsageLogMutation) DetailID() (id int64, exists bool) {
+	if m.detail != nil {
+		return *m.detail, true
+	}
+	return
+}
+
+// DetailIDs returns the "detail" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// DetailID instead. It exists only for internal usage by the builders.
+func (m *UsageLogMutation) DetailIDs() (ids []int64) {
+	if id := m.detail; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetDetail resets all changes to the "detail" edge.
+func (m *UsageLogMutation) ResetDetail() {
+	m.detail = nil
+	m.cleareddetail = false
+}
+
 // Where appends a list predicates to the UsageLogMutation builder.
 func (m *UsageLogMutation) Where(ps ...predicate.UsageLog) {
 	m.predicates = append(m.predicates, ps...)
@@ -45479,7 +45522,7 @@ func (m *UsageLogMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UsageLogMutation) AddedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.user != nil {
 		edges = append(edges, usagelog.EdgeUser)
 	}
@@ -45494,6 +45537,9 @@ func (m *UsageLogMutation) AddedEdges() []string {
 	}
 	if m.subscription != nil {
 		edges = append(edges, usagelog.EdgeSubscription)
+	}
+	if m.detail != nil {
+		edges = append(edges, usagelog.EdgeDetail)
 	}
 	return edges
 }
@@ -45522,13 +45568,17 @@ func (m *UsageLogMutation) AddedIDs(name string) []ent.Value {
 		if id := m.subscription; id != nil {
 			return []ent.Value{*id}
 		}
+	case usagelog.EdgeDetail:
+		if id := m.detail; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UsageLogMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	return edges
 }
 
@@ -45540,7 +45590,7 @@ func (m *UsageLogMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UsageLogMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.cleareduser {
 		edges = append(edges, usagelog.EdgeUser)
 	}
@@ -45555,6 +45605,9 @@ func (m *UsageLogMutation) ClearedEdges() []string {
 	}
 	if m.clearedsubscription {
 		edges = append(edges, usagelog.EdgeSubscription)
+	}
+	if m.cleareddetail {
+		edges = append(edges, usagelog.EdgeDetail)
 	}
 	return edges
 }
@@ -45573,6 +45626,8 @@ func (m *UsageLogMutation) EdgeCleared(name string) bool {
 		return m.clearedgroup
 	case usagelog.EdgeSubscription:
 		return m.clearedsubscription
+	case usagelog.EdgeDetail:
+		return m.cleareddetail
 	}
 	return false
 }
@@ -45595,6 +45650,9 @@ func (m *UsageLogMutation) ClearEdge(name string) error {
 		return nil
 	case usagelog.EdgeSubscription:
 		m.ClearSubscription()
+		return nil
+	case usagelog.EdgeDetail:
+		m.ClearDetail()
 		return nil
 	}
 	return fmt.Errorf("unknown UsageLog unique edge %s", name)
@@ -45619,8 +45677,973 @@ func (m *UsageLogMutation) ResetEdge(name string) error {
 	case usagelog.EdgeSubscription:
 		m.ResetSubscription()
 		return nil
+	case usagelog.EdgeDetail:
+		m.ResetDetail()
+		return nil
 	}
 	return fmt.Errorf("unknown UsageLog edge %s", name)
+}
+
+// UsageLogDetailMutation represents an operation that mutates the UsageLogDetail nodes in the graph.
+type UsageLogDetailMutation struct {
+	config
+	op                        Op
+	typ                       string
+	id                        *int64
+	request_payload_json      *string
+	response_payload_json     *string
+	request_payload_bytes     *int
+	addrequest_payload_bytes  *int
+	response_payload_bytes    *int
+	addresponse_payload_bytes *int
+	request_truncated         *bool
+	response_truncated        *bool
+	created_at                *time.Time
+	updated_at                *time.Time
+	clearedFields             map[string]struct{}
+	usage_log                 *int64
+	clearedusage_log          bool
+	done                      bool
+	oldValue                  func(context.Context) (*UsageLogDetail, error)
+	predicates                []predicate.UsageLogDetail
+}
+
+var _ ent.Mutation = (*UsageLogDetailMutation)(nil)
+
+// usagelogdetailOption allows management of the mutation configuration using functional options.
+type usagelogdetailOption func(*UsageLogDetailMutation)
+
+// newUsageLogDetailMutation creates new mutation for the UsageLogDetail entity.
+func newUsageLogDetailMutation(c config, op Op, opts ...usagelogdetailOption) *UsageLogDetailMutation {
+	m := &UsageLogDetailMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeUsageLogDetail,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withUsageLogDetailID sets the ID field of the mutation.
+func withUsageLogDetailID(id int64) usagelogdetailOption {
+	return func(m *UsageLogDetailMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *UsageLogDetail
+		)
+		m.oldValue = func(ctx context.Context) (*UsageLogDetail, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().UsageLogDetail.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withUsageLogDetail sets the old UsageLogDetail of the mutation.
+func withUsageLogDetail(node *UsageLogDetail) usagelogdetailOption {
+	return func(m *UsageLogDetailMutation) {
+		m.oldValue = func(context.Context) (*UsageLogDetail, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m UsageLogDetailMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m UsageLogDetailMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *UsageLogDetailMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *UsageLogDetailMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().UsageLogDetail.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUsageLogID sets the "usage_log_id" field.
+func (m *UsageLogDetailMutation) SetUsageLogID(i int64) {
+	m.usage_log = &i
+}
+
+// UsageLogID returns the value of the "usage_log_id" field in the mutation.
+func (m *UsageLogDetailMutation) UsageLogID() (r int64, exists bool) {
+	v := m.usage_log
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsageLogID returns the old "usage_log_id" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldUsageLogID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsageLogID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsageLogID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsageLogID: %w", err)
+	}
+	return oldValue.UsageLogID, nil
+}
+
+// ResetUsageLogID resets all changes to the "usage_log_id" field.
+func (m *UsageLogDetailMutation) ResetUsageLogID() {
+	m.usage_log = nil
+}
+
+// SetRequestPayloadJSON sets the "request_payload_json" field.
+func (m *UsageLogDetailMutation) SetRequestPayloadJSON(s string) {
+	m.request_payload_json = &s
+}
+
+// RequestPayloadJSON returns the value of the "request_payload_json" field in the mutation.
+func (m *UsageLogDetailMutation) RequestPayloadJSON() (r string, exists bool) {
+	v := m.request_payload_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestPayloadJSON returns the old "request_payload_json" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldRequestPayloadJSON(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestPayloadJSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestPayloadJSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestPayloadJSON: %w", err)
+	}
+	return oldValue.RequestPayloadJSON, nil
+}
+
+// ClearRequestPayloadJSON clears the value of the "request_payload_json" field.
+func (m *UsageLogDetailMutation) ClearRequestPayloadJSON() {
+	m.request_payload_json = nil
+	m.clearedFields[usagelogdetail.FieldRequestPayloadJSON] = struct{}{}
+}
+
+// RequestPayloadJSONCleared returns if the "request_payload_json" field was cleared in this mutation.
+func (m *UsageLogDetailMutation) RequestPayloadJSONCleared() bool {
+	_, ok := m.clearedFields[usagelogdetail.FieldRequestPayloadJSON]
+	return ok
+}
+
+// ResetRequestPayloadJSON resets all changes to the "request_payload_json" field.
+func (m *UsageLogDetailMutation) ResetRequestPayloadJSON() {
+	m.request_payload_json = nil
+	delete(m.clearedFields, usagelogdetail.FieldRequestPayloadJSON)
+}
+
+// SetResponsePayloadJSON sets the "response_payload_json" field.
+func (m *UsageLogDetailMutation) SetResponsePayloadJSON(s string) {
+	m.response_payload_json = &s
+}
+
+// ResponsePayloadJSON returns the value of the "response_payload_json" field in the mutation.
+func (m *UsageLogDetailMutation) ResponsePayloadJSON() (r string, exists bool) {
+	v := m.response_payload_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponsePayloadJSON returns the old "response_payload_json" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldResponsePayloadJSON(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponsePayloadJSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponsePayloadJSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponsePayloadJSON: %w", err)
+	}
+	return oldValue.ResponsePayloadJSON, nil
+}
+
+// ClearResponsePayloadJSON clears the value of the "response_payload_json" field.
+func (m *UsageLogDetailMutation) ClearResponsePayloadJSON() {
+	m.response_payload_json = nil
+	m.clearedFields[usagelogdetail.FieldResponsePayloadJSON] = struct{}{}
+}
+
+// ResponsePayloadJSONCleared returns if the "response_payload_json" field was cleared in this mutation.
+func (m *UsageLogDetailMutation) ResponsePayloadJSONCleared() bool {
+	_, ok := m.clearedFields[usagelogdetail.FieldResponsePayloadJSON]
+	return ok
+}
+
+// ResetResponsePayloadJSON resets all changes to the "response_payload_json" field.
+func (m *UsageLogDetailMutation) ResetResponsePayloadJSON() {
+	m.response_payload_json = nil
+	delete(m.clearedFields, usagelogdetail.FieldResponsePayloadJSON)
+}
+
+// SetRequestPayloadBytes sets the "request_payload_bytes" field.
+func (m *UsageLogDetailMutation) SetRequestPayloadBytes(i int) {
+	m.request_payload_bytes = &i
+	m.addrequest_payload_bytes = nil
+}
+
+// RequestPayloadBytes returns the value of the "request_payload_bytes" field in the mutation.
+func (m *UsageLogDetailMutation) RequestPayloadBytes() (r int, exists bool) {
+	v := m.request_payload_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestPayloadBytes returns the old "request_payload_bytes" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldRequestPayloadBytes(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestPayloadBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestPayloadBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestPayloadBytes: %w", err)
+	}
+	return oldValue.RequestPayloadBytes, nil
+}
+
+// AddRequestPayloadBytes adds i to the "request_payload_bytes" field.
+func (m *UsageLogDetailMutation) AddRequestPayloadBytes(i int) {
+	if m.addrequest_payload_bytes != nil {
+		*m.addrequest_payload_bytes += i
+	} else {
+		m.addrequest_payload_bytes = &i
+	}
+}
+
+// AddedRequestPayloadBytes returns the value that was added to the "request_payload_bytes" field in this mutation.
+func (m *UsageLogDetailMutation) AddedRequestPayloadBytes() (r int, exists bool) {
+	v := m.addrequest_payload_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRequestPayloadBytes clears the value of the "request_payload_bytes" field.
+func (m *UsageLogDetailMutation) ClearRequestPayloadBytes() {
+	m.request_payload_bytes = nil
+	m.addrequest_payload_bytes = nil
+	m.clearedFields[usagelogdetail.FieldRequestPayloadBytes] = struct{}{}
+}
+
+// RequestPayloadBytesCleared returns if the "request_payload_bytes" field was cleared in this mutation.
+func (m *UsageLogDetailMutation) RequestPayloadBytesCleared() bool {
+	_, ok := m.clearedFields[usagelogdetail.FieldRequestPayloadBytes]
+	return ok
+}
+
+// ResetRequestPayloadBytes resets all changes to the "request_payload_bytes" field.
+func (m *UsageLogDetailMutation) ResetRequestPayloadBytes() {
+	m.request_payload_bytes = nil
+	m.addrequest_payload_bytes = nil
+	delete(m.clearedFields, usagelogdetail.FieldRequestPayloadBytes)
+}
+
+// SetResponsePayloadBytes sets the "response_payload_bytes" field.
+func (m *UsageLogDetailMutation) SetResponsePayloadBytes(i int) {
+	m.response_payload_bytes = &i
+	m.addresponse_payload_bytes = nil
+}
+
+// ResponsePayloadBytes returns the value of the "response_payload_bytes" field in the mutation.
+func (m *UsageLogDetailMutation) ResponsePayloadBytes() (r int, exists bool) {
+	v := m.response_payload_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponsePayloadBytes returns the old "response_payload_bytes" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldResponsePayloadBytes(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponsePayloadBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponsePayloadBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponsePayloadBytes: %w", err)
+	}
+	return oldValue.ResponsePayloadBytes, nil
+}
+
+// AddResponsePayloadBytes adds i to the "response_payload_bytes" field.
+func (m *UsageLogDetailMutation) AddResponsePayloadBytes(i int) {
+	if m.addresponse_payload_bytes != nil {
+		*m.addresponse_payload_bytes += i
+	} else {
+		m.addresponse_payload_bytes = &i
+	}
+}
+
+// AddedResponsePayloadBytes returns the value that was added to the "response_payload_bytes" field in this mutation.
+func (m *UsageLogDetailMutation) AddedResponsePayloadBytes() (r int, exists bool) {
+	v := m.addresponse_payload_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearResponsePayloadBytes clears the value of the "response_payload_bytes" field.
+func (m *UsageLogDetailMutation) ClearResponsePayloadBytes() {
+	m.response_payload_bytes = nil
+	m.addresponse_payload_bytes = nil
+	m.clearedFields[usagelogdetail.FieldResponsePayloadBytes] = struct{}{}
+}
+
+// ResponsePayloadBytesCleared returns if the "response_payload_bytes" field was cleared in this mutation.
+func (m *UsageLogDetailMutation) ResponsePayloadBytesCleared() bool {
+	_, ok := m.clearedFields[usagelogdetail.FieldResponsePayloadBytes]
+	return ok
+}
+
+// ResetResponsePayloadBytes resets all changes to the "response_payload_bytes" field.
+func (m *UsageLogDetailMutation) ResetResponsePayloadBytes() {
+	m.response_payload_bytes = nil
+	m.addresponse_payload_bytes = nil
+	delete(m.clearedFields, usagelogdetail.FieldResponsePayloadBytes)
+}
+
+// SetRequestTruncated sets the "request_truncated" field.
+func (m *UsageLogDetailMutation) SetRequestTruncated(b bool) {
+	m.request_truncated = &b
+}
+
+// RequestTruncated returns the value of the "request_truncated" field in the mutation.
+func (m *UsageLogDetailMutation) RequestTruncated() (r bool, exists bool) {
+	v := m.request_truncated
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestTruncated returns the old "request_truncated" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldRequestTruncated(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestTruncated is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestTruncated requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestTruncated: %w", err)
+	}
+	return oldValue.RequestTruncated, nil
+}
+
+// ResetRequestTruncated resets all changes to the "request_truncated" field.
+func (m *UsageLogDetailMutation) ResetRequestTruncated() {
+	m.request_truncated = nil
+}
+
+// SetResponseTruncated sets the "response_truncated" field.
+func (m *UsageLogDetailMutation) SetResponseTruncated(b bool) {
+	m.response_truncated = &b
+}
+
+// ResponseTruncated returns the value of the "response_truncated" field in the mutation.
+func (m *UsageLogDetailMutation) ResponseTruncated() (r bool, exists bool) {
+	v := m.response_truncated
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseTruncated returns the old "response_truncated" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldResponseTruncated(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseTruncated is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseTruncated requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseTruncated: %w", err)
+	}
+	return oldValue.ResponseTruncated, nil
+}
+
+// ResetResponseTruncated resets all changes to the "response_truncated" field.
+func (m *UsageLogDetailMutation) ResetResponseTruncated() {
+	m.response_truncated = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *UsageLogDetailMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *UsageLogDetailMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *UsageLogDetailMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *UsageLogDetailMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *UsageLogDetailMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the UsageLogDetail entity.
+// If the UsageLogDetail object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogDetailMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *UsageLogDetailMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearUsageLog clears the "usage_log" edge to the UsageLog entity.
+func (m *UsageLogDetailMutation) ClearUsageLog() {
+	m.clearedusage_log = true
+	m.clearedFields[usagelogdetail.FieldUsageLogID] = struct{}{}
+}
+
+// UsageLogCleared reports if the "usage_log" edge to the UsageLog entity was cleared.
+func (m *UsageLogDetailMutation) UsageLogCleared() bool {
+	return m.clearedusage_log
+}
+
+// UsageLogIDs returns the "usage_log" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UsageLogID instead. It exists only for internal usage by the builders.
+func (m *UsageLogDetailMutation) UsageLogIDs() (ids []int64) {
+	if id := m.usage_log; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUsageLog resets all changes to the "usage_log" edge.
+func (m *UsageLogDetailMutation) ResetUsageLog() {
+	m.usage_log = nil
+	m.clearedusage_log = false
+}
+
+// Where appends a list predicates to the UsageLogDetailMutation builder.
+func (m *UsageLogDetailMutation) Where(ps ...predicate.UsageLogDetail) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the UsageLogDetailMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *UsageLogDetailMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.UsageLogDetail, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *UsageLogDetailMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *UsageLogDetailMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (UsageLogDetail).
+func (m *UsageLogDetailMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *UsageLogDetailMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.usage_log != nil {
+		fields = append(fields, usagelogdetail.FieldUsageLogID)
+	}
+	if m.request_payload_json != nil {
+		fields = append(fields, usagelogdetail.FieldRequestPayloadJSON)
+	}
+	if m.response_payload_json != nil {
+		fields = append(fields, usagelogdetail.FieldResponsePayloadJSON)
+	}
+	if m.request_payload_bytes != nil {
+		fields = append(fields, usagelogdetail.FieldRequestPayloadBytes)
+	}
+	if m.response_payload_bytes != nil {
+		fields = append(fields, usagelogdetail.FieldResponsePayloadBytes)
+	}
+	if m.request_truncated != nil {
+		fields = append(fields, usagelogdetail.FieldRequestTruncated)
+	}
+	if m.response_truncated != nil {
+		fields = append(fields, usagelogdetail.FieldResponseTruncated)
+	}
+	if m.created_at != nil {
+		fields = append(fields, usagelogdetail.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, usagelogdetail.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *UsageLogDetailMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case usagelogdetail.FieldUsageLogID:
+		return m.UsageLogID()
+	case usagelogdetail.FieldRequestPayloadJSON:
+		return m.RequestPayloadJSON()
+	case usagelogdetail.FieldResponsePayloadJSON:
+		return m.ResponsePayloadJSON()
+	case usagelogdetail.FieldRequestPayloadBytes:
+		return m.RequestPayloadBytes()
+	case usagelogdetail.FieldResponsePayloadBytes:
+		return m.ResponsePayloadBytes()
+	case usagelogdetail.FieldRequestTruncated:
+		return m.RequestTruncated()
+	case usagelogdetail.FieldResponseTruncated:
+		return m.ResponseTruncated()
+	case usagelogdetail.FieldCreatedAt:
+		return m.CreatedAt()
+	case usagelogdetail.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *UsageLogDetailMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case usagelogdetail.FieldUsageLogID:
+		return m.OldUsageLogID(ctx)
+	case usagelogdetail.FieldRequestPayloadJSON:
+		return m.OldRequestPayloadJSON(ctx)
+	case usagelogdetail.FieldResponsePayloadJSON:
+		return m.OldResponsePayloadJSON(ctx)
+	case usagelogdetail.FieldRequestPayloadBytes:
+		return m.OldRequestPayloadBytes(ctx)
+	case usagelogdetail.FieldResponsePayloadBytes:
+		return m.OldResponsePayloadBytes(ctx)
+	case usagelogdetail.FieldRequestTruncated:
+		return m.OldRequestTruncated(ctx)
+	case usagelogdetail.FieldResponseTruncated:
+		return m.OldResponseTruncated(ctx)
+	case usagelogdetail.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case usagelogdetail.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown UsageLogDetail field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UsageLogDetailMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case usagelogdetail.FieldUsageLogID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsageLogID(v)
+		return nil
+	case usagelogdetail.FieldRequestPayloadJSON:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestPayloadJSON(v)
+		return nil
+	case usagelogdetail.FieldResponsePayloadJSON:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponsePayloadJSON(v)
+		return nil
+	case usagelogdetail.FieldRequestPayloadBytes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestPayloadBytes(v)
+		return nil
+	case usagelogdetail.FieldResponsePayloadBytes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponsePayloadBytes(v)
+		return nil
+	case usagelogdetail.FieldRequestTruncated:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestTruncated(v)
+		return nil
+	case usagelogdetail.FieldResponseTruncated:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseTruncated(v)
+		return nil
+	case usagelogdetail.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case usagelogdetail.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UsageLogDetail field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *UsageLogDetailMutation) AddedFields() []string {
+	var fields []string
+	if m.addrequest_payload_bytes != nil {
+		fields = append(fields, usagelogdetail.FieldRequestPayloadBytes)
+	}
+	if m.addresponse_payload_bytes != nil {
+		fields = append(fields, usagelogdetail.FieldResponsePayloadBytes)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *UsageLogDetailMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case usagelogdetail.FieldRequestPayloadBytes:
+		return m.AddedRequestPayloadBytes()
+	case usagelogdetail.FieldResponsePayloadBytes:
+		return m.AddedResponsePayloadBytes()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UsageLogDetailMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case usagelogdetail.FieldRequestPayloadBytes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRequestPayloadBytes(v)
+		return nil
+	case usagelogdetail.FieldResponsePayloadBytes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddResponsePayloadBytes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UsageLogDetail numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *UsageLogDetailMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(usagelogdetail.FieldRequestPayloadJSON) {
+		fields = append(fields, usagelogdetail.FieldRequestPayloadJSON)
+	}
+	if m.FieldCleared(usagelogdetail.FieldResponsePayloadJSON) {
+		fields = append(fields, usagelogdetail.FieldResponsePayloadJSON)
+	}
+	if m.FieldCleared(usagelogdetail.FieldRequestPayloadBytes) {
+		fields = append(fields, usagelogdetail.FieldRequestPayloadBytes)
+	}
+	if m.FieldCleared(usagelogdetail.FieldResponsePayloadBytes) {
+		fields = append(fields, usagelogdetail.FieldResponsePayloadBytes)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *UsageLogDetailMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *UsageLogDetailMutation) ClearField(name string) error {
+	switch name {
+	case usagelogdetail.FieldRequestPayloadJSON:
+		m.ClearRequestPayloadJSON()
+		return nil
+	case usagelogdetail.FieldResponsePayloadJSON:
+		m.ClearResponsePayloadJSON()
+		return nil
+	case usagelogdetail.FieldRequestPayloadBytes:
+		m.ClearRequestPayloadBytes()
+		return nil
+	case usagelogdetail.FieldResponsePayloadBytes:
+		m.ClearResponsePayloadBytes()
+		return nil
+	}
+	return fmt.Errorf("unknown UsageLogDetail nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *UsageLogDetailMutation) ResetField(name string) error {
+	switch name {
+	case usagelogdetail.FieldUsageLogID:
+		m.ResetUsageLogID()
+		return nil
+	case usagelogdetail.FieldRequestPayloadJSON:
+		m.ResetRequestPayloadJSON()
+		return nil
+	case usagelogdetail.FieldResponsePayloadJSON:
+		m.ResetResponsePayloadJSON()
+		return nil
+	case usagelogdetail.FieldRequestPayloadBytes:
+		m.ResetRequestPayloadBytes()
+		return nil
+	case usagelogdetail.FieldResponsePayloadBytes:
+		m.ResetResponsePayloadBytes()
+		return nil
+	case usagelogdetail.FieldRequestTruncated:
+		m.ResetRequestTruncated()
+		return nil
+	case usagelogdetail.FieldResponseTruncated:
+		m.ResetResponseTruncated()
+		return nil
+	case usagelogdetail.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case usagelogdetail.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown UsageLogDetail field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *UsageLogDetailMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.usage_log != nil {
+		edges = append(edges, usagelogdetail.EdgeUsageLog)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *UsageLogDetailMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case usagelogdetail.EdgeUsageLog:
+		if id := m.usage_log; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *UsageLogDetailMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *UsageLogDetailMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *UsageLogDetailMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedusage_log {
+		edges = append(edges, usagelogdetail.EdgeUsageLog)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *UsageLogDetailMutation) EdgeCleared(name string) bool {
+	switch name {
+	case usagelogdetail.EdgeUsageLog:
+		return m.clearedusage_log
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *UsageLogDetailMutation) ClearEdge(name string) error {
+	switch name {
+	case usagelogdetail.EdgeUsageLog:
+		m.ClearUsageLog()
+		return nil
+	}
+	return fmt.Errorf("unknown UsageLogDetail unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *UsageLogDetailMutation) ResetEdge(name string) error {
+	switch name {
+	case usagelogdetail.EdgeUsageLog:
+		m.ResetUsageLog()
+		return nil
+	}
+	return fmt.Errorf("unknown UsageLogDetail edge %s", name)
 }
 
 // UserMutation represents an operation that mutates the User nodes in the graph.
@@ -45658,6 +46681,7 @@ type UserMutation struct {
 	total_recharged                *float64
 	addtotal_recharged             *float64
 	usage_brief_auto_email_enabled *bool
+	usage_brief_page_enabled       *bool
 	rpm_limit                      *int
 	addrpm_limit                   *int
 	clearedFields                  map[string]struct{}
@@ -46846,6 +47870,42 @@ func (m *UserMutation) ResetUsageBriefAutoEmailEnabled() {
 	m.usage_brief_auto_email_enabled = nil
 }
 
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (m *UserMutation) SetUsageBriefPageEnabled(b bool) {
+	m.usage_brief_page_enabled = &b
+}
+
+// UsageBriefPageEnabled returns the value of the "usage_brief_page_enabled" field in the mutation.
+func (m *UserMutation) UsageBriefPageEnabled() (r bool, exists bool) {
+	v := m.usage_brief_page_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsageBriefPageEnabled returns the old "usage_brief_page_enabled" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldUsageBriefPageEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsageBriefPageEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsageBriefPageEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsageBriefPageEnabled: %w", err)
+	}
+	return oldValue.UsageBriefPageEnabled, nil
+}
+
+// ResetUsageBriefPageEnabled resets all changes to the "usage_brief_page_enabled" field.
+func (m *UserMutation) ResetUsageBriefPageEnabled() {
+	m.usage_brief_page_enabled = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *UserMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -47638,7 +48698,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 24)
+	fields := make([]string, 0, 26)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -47711,6 +48771,9 @@ func (m *UserMutation) Fields() []string {
 	if m.usage_brief_auto_email_enabled != nil {
 		fields = append(fields, user.FieldUsageBriefAutoEmailEnabled)
 	}
+	if m.usage_brief_page_enabled != nil {
+		fields = append(fields, user.FieldUsageBriefPageEnabled)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, user.FieldRpmLimit)
 	}
@@ -47770,6 +48833,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.TotalRecharged()
 	case user.FieldUsageBriefAutoEmailEnabled:
 		return m.UsageBriefAutoEmailEnabled()
+	case user.FieldUsageBriefPageEnabled:
+		return m.UsageBriefPageEnabled()
 	case user.FieldRpmLimit:
 		return m.RpmLimit()
 	}
@@ -47829,6 +48894,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTotalRecharged(ctx)
 	case user.FieldUsageBriefAutoEmailEnabled:
 		return m.OldUsageBriefAutoEmailEnabled(ctx)
+	case user.FieldUsageBriefPageEnabled:
+		return m.OldUsageBriefPageEnabled(ctx)
 	case user.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	}
@@ -48007,6 +49074,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUsageBriefAutoEmailEnabled(v)
+		return nil
+	case user.FieldUsageBriefPageEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsageBriefPageEnabled(v)
 		return nil
 	case user.FieldRpmLimit:
 		v, ok := value.(int)
@@ -48249,6 +49323,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldUsageBriefAutoEmailEnabled:
 		m.ResetUsageBriefAutoEmailEnabled()
+		return nil
+	case user.FieldUsageBriefPageEnabled:
+		m.ResetUsageBriefPageEnabled()
 		return nil
 	case user.FieldRpmLimit:
 		m.ResetRpmLimit()

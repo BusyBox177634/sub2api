@@ -738,6 +738,96 @@ func TestUpdateProfileUpdatesUsageBriefAutoEmailPreference(t *testing.T) {
 	require.Equal(t, 1, repo.updateCalls)
 }
 
+func TestUpdateProfileDisablingUsageBriefPageAlsoDisablesAutoEmail(t *testing.T) {
+	pageEnabled := false
+	var saved *User
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:                         12,
+			Email:                      "profile@example.com",
+			Username:                   "profile-user",
+			UsageBriefAutoEmailEnabled: true,
+			UsageBriefPageEnabled:      true,
+		},
+		updateFn: func(_ context.Context, user *User) error {
+			cloned := *user
+			saved = &cloned
+			return nil
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 12, UpdateProfileRequest{UsageBriefPageEnabled: &pageEnabled})
+
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.False(t, saved.UsageBriefPageEnabled)
+	require.False(t, saved.UsageBriefAutoEmailEnabled)
+	require.False(t, updated.UsageBriefPageEnabled)
+	require.False(t, updated.UsageBriefAutoEmailEnabled)
+	require.Equal(t, 1, repo.updateCalls)
+}
+
+func TestUpdateProfileEnablingUsageBriefPageDoesNotEnableAutoEmail(t *testing.T) {
+	pageEnabled := true
+	var saved *User
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:                         12,
+			Email:                      "profile@example.com",
+			Username:                   "profile-user",
+			UsageBriefAutoEmailEnabled: false,
+			UsageBriefPageEnabled:      false,
+		},
+		updateFn: func(_ context.Context, user *User) error {
+			cloned := *user
+			saved = &cloned
+			return nil
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 12, UpdateProfileRequest{UsageBriefPageEnabled: &pageEnabled})
+
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.True(t, saved.UsageBriefPageEnabled)
+	require.False(t, saved.UsageBriefAutoEmailEnabled)
+	require.True(t, updated.UsageBriefPageEnabled)
+	require.False(t, updated.UsageBriefAutoEmailEnabled)
+	require.Equal(t, 1, repo.updateCalls)
+}
+
+func TestUpdateProfileDisablingUsageBriefAutoEmailKeepsPagePreference(t *testing.T) {
+	autoEmailEnabled := false
+	var saved *User
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:                         12,
+			Email:                      "profile@example.com",
+			Username:                   "profile-user",
+			UsageBriefAutoEmailEnabled: true,
+			UsageBriefPageEnabled:      true,
+		},
+		updateFn: func(_ context.Context, user *User) error {
+			cloned := *user
+			saved = &cloned
+			return nil
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 12, UpdateProfileRequest{UsageBriefAutoEmailEnabled: &autoEmailEnabled})
+
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	require.True(t, saved.UsageBriefPageEnabled)
+	require.False(t, saved.UsageBriefAutoEmailEnabled)
+	require.True(t, updated.UsageBriefPageEnabled)
+	require.False(t, updated.UsageBriefAutoEmailEnabled)
+	require.Equal(t, 1, repo.updateCalls)
+}
+
 func TestUpdateUsernameFromTrustedIdentityUpdatesUsername(t *testing.T) {
 	var saved *User
 	repo := &mockUserRepo{

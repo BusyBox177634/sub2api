@@ -97,6 +97,38 @@ func TestUserRepositoryGetByEmailPreservesPasswordHashForLogin(t *testing.T) {
 	require.Equal(t, "login@example.com", user.Email)
 }
 
+func TestUserRepositoryUpdatePersistsUsageBriefPagePreference(t *testing.T) {
+	repo, _ := newUserEntRepo(t)
+	ctx := context.Background()
+
+	err := repo.Create(ctx, &service.User{
+		Email:        "brief-page@example.com",
+		Username:     "brief-page-user",
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+	require.NoError(t, err)
+
+	got, err := repo.GetByEmail(ctx, "brief-page@example.com")
+	require.NoError(t, err)
+	require.True(t, got.UsageBriefPageEnabled)
+
+	got.UsageBriefPageEnabled = false
+	require.NoError(t, repo.Update(ctx, got))
+	disabled, err := repo.GetByID(ctx, got.ID)
+	require.NoError(t, err)
+	require.False(t, disabled.UsageBriefPageEnabled)
+
+	disabled.UsageBriefPageEnabled = true
+	disabled.UsageBriefAutoEmailEnabled = false
+	require.NoError(t, repo.Update(ctx, disabled))
+	enabled, err := repo.GetByID(ctx, disabled.ID)
+	require.NoError(t, err)
+	require.True(t, enabled.UsageBriefPageEnabled)
+	require.False(t, enabled.UsageBriefAutoEmailEnabled)
+}
+
 func TestUserRepositoryExistsByEmailNormalizesLegacySpacingAndCase(t *testing.T) {
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()

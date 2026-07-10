@@ -38,6 +38,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/tlsfingerprintprofile"
 	"github.com/Wei-Shaw/sub2api/ent/usagecleanuptask"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
+	"github.com/Wei-Shaw/sub2api/ent/usagelogdetail"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
@@ -1992,6 +1993,26 @@ func init() {
 	usagelogDescCreatedAt := usagelogFields[43].Descriptor()
 	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	usagelog.DefaultCreatedAt = usagelogDescCreatedAt.Default.(func() time.Time)
+	usagelogdetailFields := schema.UsageLogDetail{}.Fields()
+	_ = usagelogdetailFields
+	// usagelogdetailDescRequestTruncated is the schema descriptor for request_truncated field.
+	usagelogdetailDescRequestTruncated := usagelogdetailFields[5].Descriptor()
+	// usagelogdetail.DefaultRequestTruncated holds the default value on creation for the request_truncated field.
+	usagelogdetail.DefaultRequestTruncated = usagelogdetailDescRequestTruncated.Default.(bool)
+	// usagelogdetailDescResponseTruncated is the schema descriptor for response_truncated field.
+	usagelogdetailDescResponseTruncated := usagelogdetailFields[6].Descriptor()
+	// usagelogdetail.DefaultResponseTruncated holds the default value on creation for the response_truncated field.
+	usagelogdetail.DefaultResponseTruncated = usagelogdetailDescResponseTruncated.Default.(bool)
+	// usagelogdetailDescCreatedAt is the schema descriptor for created_at field.
+	usagelogdetailDescCreatedAt := usagelogdetailFields[7].Descriptor()
+	// usagelogdetail.DefaultCreatedAt holds the default value on creation for the created_at field.
+	usagelogdetail.DefaultCreatedAt = usagelogdetailDescCreatedAt.Default.(func() time.Time)
+	// usagelogdetailDescUpdatedAt is the schema descriptor for updated_at field.
+	usagelogdetailDescUpdatedAt := usagelogdetailFields[8].Descriptor()
+	// usagelogdetail.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	usagelogdetail.DefaultUpdatedAt = usagelogdetailDescUpdatedAt.Default.(func() time.Time)
+	// usagelogdetail.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	usagelogdetail.UpdateDefaultUpdatedAt = usagelogdetailDescUpdatedAt.UpdateDefault.(func() time.Time)
 	userMixin := schema.User{}.Mixin()
 	userMixinHooks1 := userMixin[1].Hooks()
 	user.Hooks[0] = userMixinHooks1[0]
@@ -2111,8 +2132,12 @@ func init() {
 	userDescUsageBriefAutoEmailEnabled := userFields[20].Descriptor()
 	// user.DefaultUsageBriefAutoEmailEnabled holds the default value on creation for the usage_brief_auto_email_enabled field.
 	user.DefaultUsageBriefAutoEmailEnabled = userDescUsageBriefAutoEmailEnabled.Default.(bool)
+	// userDescUsageBriefPageEnabled is the schema descriptor for usage_brief_page_enabled field.
+	userDescUsageBriefPageEnabled := userFields[21].Descriptor()
+	// user.DefaultUsageBriefPageEnabled holds the default value on creation for the usage_brief_page_enabled field.
+	user.DefaultUsageBriefPageEnabled = userDescUsageBriefPageEnabled.Default.(bool)
 	// userDescRpmLimit is the schema descriptor for rpm_limit field.
-	userDescRpmLimit := userFields[21].Descriptor()
+	userDescRpmLimit := userFields[22].Descriptor()
 	// user.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	user.DefaultRpmLimit = userDescRpmLimit.Default.(int)
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()

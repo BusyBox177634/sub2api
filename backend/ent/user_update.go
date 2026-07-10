@@ -425,6 +425,20 @@ func (_u *UserUpdate) SetNillableUsageBriefAutoEmailEnabled(v *bool) *UserUpdate
 	return _u
 }
 
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (_u *UserUpdate) SetUsageBriefPageEnabled(v bool) *UserUpdate {
+	_u.mutation.SetUsageBriefPageEnabled(v)
+	return _u
+}
+
+// SetNillableUsageBriefPageEnabled sets the "usage_brief_page_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableUsageBriefPageEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetUsageBriefPageEnabled(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *UserUpdate) SetRpmLimit(v int) *UserUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1109,6 +1123,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.UsageBriefAutoEmailEnabled(); ok {
 		_spec.SetField(user.FieldUsageBriefAutoEmailEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UsageBriefPageEnabled(); ok {
+		_spec.SetField(user.FieldUsageBriefPageEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -2118,6 +2135,20 @@ func (_u *UserUpdateOne) SetNillableUsageBriefAutoEmailEnabled(v *bool) *UserUpd
 	return _u
 }
 
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (_u *UserUpdateOne) SetUsageBriefPageEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetUsageBriefPageEnabled(v)
+	return _u
+}
+
+// SetNillableUsageBriefPageEnabled sets the "usage_brief_page_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableUsageBriefPageEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetUsageBriefPageEnabled(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *UserUpdateOne) SetRpmLimit(v int) *UserUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2832,6 +2863,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.UsageBriefAutoEmailEnabled(); ok {
 		_spec.SetField(user.FieldUsageBriefAutoEmailEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UsageBriefPageEnabled(); ok {
+		_spec.SetField(user.FieldUsageBriefPageEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)

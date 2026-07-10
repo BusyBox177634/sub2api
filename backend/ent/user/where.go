@@ -175,6 +175,11 @@ func UsageBriefAutoEmailEnabled(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldUsageBriefAutoEmailEnabled, v))
 }
 
+// UsageBriefPageEnabled applies equality check predicate on the "usage_brief_page_enabled" field. It's identical to UsageBriefPageEnabledEQ.
+func UsageBriefPageEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldUsageBriefPageEnabled, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRpmLimit, v))
@@ -1315,16 +1320,6 @@ func TotalRechargedEQ(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTotalRecharged, v))
 }
 
-// UsageBriefAutoEmailEnabledEQ applies the EQ predicate on the "usage_brief_auto_email_enabled" field.
-func UsageBriefAutoEmailEnabledEQ(v bool) predicate.User {
-	return predicate.User(sql.FieldEQ(FieldUsageBriefAutoEmailEnabled, v))
-}
-
-// UsageBriefAutoEmailEnabledNEQ applies the NEQ predicate on the "usage_brief_auto_email_enabled" field.
-func UsageBriefAutoEmailEnabledNEQ(v bool) predicate.User {
-	return predicate.User(sql.FieldNEQ(FieldUsageBriefAutoEmailEnabled, v))
-}
-
 // TotalRechargedNEQ applies the NEQ predicate on the "total_recharged" field.
 func TotalRechargedNEQ(v float64) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldTotalRecharged, v))
@@ -1358,6 +1353,26 @@ func TotalRechargedLT(v float64) predicate.User {
 // TotalRechargedLTE applies the LTE predicate on the "total_recharged" field.
 func TotalRechargedLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldTotalRecharged, v))
+}
+
+// UsageBriefAutoEmailEnabledEQ applies the EQ predicate on the "usage_brief_auto_email_enabled" field.
+func UsageBriefAutoEmailEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldUsageBriefAutoEmailEnabled, v))
+}
+
+// UsageBriefAutoEmailEnabledNEQ applies the NEQ predicate on the "usage_brief_auto_email_enabled" field.
+func UsageBriefAutoEmailEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldUsageBriefAutoEmailEnabled, v))
+}
+
+// UsageBriefPageEnabledEQ applies the EQ predicate on the "usage_brief_page_enabled" field.
+func UsageBriefPageEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldUsageBriefPageEnabled, v))
+}
+
+// UsageBriefPageEnabledNEQ applies the NEQ predicate on the "usage_brief_page_enabled" field.
+func UsageBriefPageEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldUsageBriefPageEnabled, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

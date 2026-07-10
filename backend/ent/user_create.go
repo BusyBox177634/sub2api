@@ -354,6 +354,20 @@ func (_c *UserCreate) SetNillableUsageBriefAutoEmailEnabled(v *bool) *UserCreate
 	return _c
 }
 
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (_c *UserCreate) SetUsageBriefPageEnabled(v bool) *UserCreate {
+	_c.mutation.SetUsageBriefPageEnabled(v)
+	return _c
+}
+
+// SetNillableUsageBriefPageEnabled sets the "usage_brief_page_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableUsageBriefPageEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetUsageBriefPageEnabled(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *UserCreate) SetRpmLimit(v int) *UserCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -670,6 +684,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultUsageBriefAutoEmailEnabled
 		_c.mutation.SetUsageBriefAutoEmailEnabled(v)
 	}
+	if _, ok := _c.mutation.UsageBriefPageEnabled(); !ok {
+		v := user.DefaultUsageBriefPageEnabled
+		_c.mutation.SetUsageBriefPageEnabled(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := user.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -762,6 +780,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.UsageBriefAutoEmailEnabled(); !ok {
 		return &ValidationError{Name: "usage_brief_auto_email_enabled", err: errors.New(`ent: missing required field "User.usage_brief_auto_email_enabled"`)}
+	}
+	if _, ok := _c.mutation.UsageBriefPageEnabled(); !ok {
+		return &ValidationError{Name: "usage_brief_page_enabled", err: errors.New(`ent: missing required field "User.usage_brief_page_enabled"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "User.rpm_limit"`)}
@@ -888,6 +909,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UsageBriefAutoEmailEnabled(); ok {
 		_spec.SetField(user.FieldUsageBriefAutoEmailEnabled, field.TypeBool, value)
 		_node.UsageBriefAutoEmailEnabled = value
+	}
+	if value, ok := _c.mutation.UsageBriefPageEnabled(); ok {
+		_spec.SetField(user.FieldUsageBriefPageEnabled, field.TypeBool, value)
+		_node.UsageBriefPageEnabled = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -1499,6 +1524,18 @@ func (u *UserUpsert) UpdateUsageBriefAutoEmailEnabled() *UserUpsert {
 	return u
 }
 
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (u *UserUpsert) SetUsageBriefPageEnabled(v bool) *UserUpsert {
+	u.Set(user.FieldUsageBriefPageEnabled, v)
+	return u
+}
+
+// UpdateUsageBriefPageEnabled sets the "usage_brief_page_enabled" field to the value that was provided on create.
+func (u *UserUpsert) UpdateUsageBriefPageEnabled() *UserUpsert {
+	u.SetExcluded(user.FieldUsageBriefPageEnabled)
+	return u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *UserUpsert) SetRpmLimit(v int) *UserUpsert {
 	u.Set(user.FieldRpmLimit, v)
@@ -1958,6 +1995,20 @@ func (u *UserUpsertOne) SetUsageBriefAutoEmailEnabled(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateUsageBriefAutoEmailEnabled() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateUsageBriefAutoEmailEnabled()
+	})
+}
+
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (u *UserUpsertOne) SetUsageBriefPageEnabled(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUsageBriefPageEnabled(v)
+	})
+}
+
+// UpdateUsageBriefPageEnabled sets the "usage_brief_page_enabled" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateUsageBriefPageEnabled() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUsageBriefPageEnabled()
 	})
 }
 
@@ -2589,6 +2640,20 @@ func (u *UserUpsertBulk) SetUsageBriefAutoEmailEnabled(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateUsageBriefAutoEmailEnabled() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateUsageBriefAutoEmailEnabled()
+	})
+}
+
+// SetUsageBriefPageEnabled sets the "usage_brief_page_enabled" field.
+func (u *UserUpsertBulk) SetUsageBriefPageEnabled(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUsageBriefPageEnabled(v)
+	})
+}
+
+// UpdateUsageBriefPageEnabled sets the "usage_brief_page_enabled" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateUsageBriefPageEnabled() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUsageBriefPageEnabled()
 	})
 }
 

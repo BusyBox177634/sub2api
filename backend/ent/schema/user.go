@@ -113,6 +113,8 @@ func (User) Fields() []ent.Field {
 			Default(0),
 		field.Bool("usage_brief_auto_email_enabled").
 			Default(false),
+		field.Bool("usage_brief_page_enabled").
+			Default(true),
 
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。
 		field.Int("rpm_limit").

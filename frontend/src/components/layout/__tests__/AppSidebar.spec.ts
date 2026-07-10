@@ -60,3 +60,15 @@ describe('AppSidebar self navigation', () => {
     expect(componentSource).toContain("{ path: '/chat', label: t('nav.chat'), icon: ChatIcon }")
   })
 })
+
+describe('AppSidebar usage brief navigation', () => {
+  it('keeps the user usage brief entry controlled only by the global feature flag', () => {
+    expect(componentSource).toContain('const flagUsageBrief = makeSidebarFlag(FeatureFlags.usageBrief)')
+
+    const userUsageBriefItem = componentSource.match(/\{ path: '\/usage-brief'[^}]+\}/)?.[0] ?? ''
+    expect(userUsageBriefItem).toContain("label: t('nav.usageBrief')")
+    expect(userUsageBriefItem).toContain('featureFlag: flagUsageBrief')
+    expect(userUsageBriefItem).not.toContain('usage_brief_page_enabled')
+    expect(userUsageBriefItem).not.toContain('authStore.user')
+  })
+})
