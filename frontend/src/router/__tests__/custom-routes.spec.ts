@@ -126,4 +126,14 @@ describe('custom README_USER_CUSTOM routes', () => {
     expect(quickMonitorStatus).not.toHaveBeenCalled()
     expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/admin/dashboard')
   })
+
+  it.each(['batch-image', 'docs'])('rejects the %s route namespace as a quick-monitor suffix', async (suffix) => {
+    const { default: router } = await import('@/router')
+
+    await router.push(`/${suffix}/dashboard`)
+    await router.isReady()
+
+    expect(quickMonitorStatus).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.fullPath).toBe('/404')
+  })
 })

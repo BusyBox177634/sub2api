@@ -615,6 +615,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/prompt-audit',
+    name: 'AdminPromptAudit',
+    component: () => import('@/features/prompt-audit/PromptAuditView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Prompt Audit',
+      titleKey: 'admin.promptAudit.title',
+      descriptionKey: 'admin.promptAudit.description',
+      requiresRiskControl: true
+    }
+  },
+  {
     path: '/admin/usage',
     name: 'AdminUsage',
     component: () => import('@/views/admin/UsageView.vue'),
@@ -863,9 +876,11 @@ const QUICK_MONITOR_RESERVED_SUFFIXES = new Set([
   'api',
   'auth',
   'available-channels',
+  'batch-image',
   'chat',
   'custom',
   'dashboard',
+  'docs',
   'email-verify',
   'forgot-password',
   'groups',
