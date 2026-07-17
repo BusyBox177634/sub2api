@@ -80,6 +80,7 @@ export default {
         timeRange: '时间范围',
         startTime: '开始时间（可选）',
         endTime: '结束时间（可选）',
+        host: 'Host',
         component: '组件',
         componentPlaceholder: '例如 http.access',
         keyId: 'KEY ID',
@@ -295,6 +296,7 @@ export default {
         typeUpstream: '上游',
         typeRequest: '请求',
         typeAuth: '认证',
+        typeAccountAuth: '账号认证',
         typeRouting: '路由',
         typeInternal: '内部',
         endpoint: '端点',
@@ -320,6 +322,7 @@ export default {
         phase: {
           request: '请求',
           auth: '认证',
+          account_auth: '账号认证',
           routing: '路由',
           upstream: '上游',
           network: '网络',

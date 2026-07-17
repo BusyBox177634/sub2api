@@ -80,6 +80,7 @@ export default {
         timeRange: 'Time range',
         startTime: 'Start time (optional)',
         endTime: 'End time (optional)',
+        host: 'Host',
         component: 'Component',
         componentPlaceholder: 'e.g. http.access',
         keyId: 'KEY ID',
@@ -295,6 +296,7 @@ export default {
         typeUpstream: 'Upstream',
         typeRequest: 'Request',
         typeAuth: 'Auth',
+        typeAccountAuth: 'Account Auth',
         typeRouting: 'Routing',
         typeInternal: 'Internal',
         endpoint: 'Endpoint',
@@ -320,6 +322,7 @@ export default {
         phase: {
           request: 'Request',
           auth: 'Auth',
+          account_auth: 'Account Auth',
           routing: 'Routing',
           upstream: 'Upstream',
           network: 'Network',

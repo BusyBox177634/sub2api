@@ -45,7 +45,7 @@ vi.mock('@/stores', () => ({
 }))
 
 const SelectStub = defineComponent({
-  name: 'Select',
+  name: 'SelectStub',
   template: '<div class="select-stub" />',
 })
 
