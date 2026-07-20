@@ -60,7 +60,23 @@ func TestProvideOpsServiceWiresUsageDetailRetentionStatus(t *testing.T) {
 		st.ProgressPercent = 75
 	})
 
-	svc := ProvideOpsService(&opsRepoMock{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, retention, nil)
+	svc := ProvideOpsService(
+		&opsRepoMock{},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		retention,
+		nil,
+		nil,
+		nil,
+	)
 
 	overview, err := svc.GetDashboardOverview(context.Background(), &OpsDashboardFilter{
 		StartTime: start,
