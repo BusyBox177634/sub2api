@@ -24,6 +24,10 @@ type UsageLogDetail struct {
 	RequestPayloadJSON *string `json:"request_payload_json,omitempty"`
 	// ResponsePayloadJSON holds the value of the "response_payload_json" field.
 	ResponsePayloadJSON *string `json:"response_payload_json,omitempty"`
+	// CompressedRequestPayloadJSON holds the value of the "compressed_request_payload_json" field.
+	CompressedRequestPayloadJSON *string `json:"compressed_request_payload_json,omitempty"`
+	// CompressedResponsePayloadJSON holds the value of the "compressed_response_payload_json" field.
+	CompressedResponsePayloadJSON *string `json:"compressed_response_payload_json,omitempty"`
 	// RequestPayloadBytes holds the value of the "request_payload_bytes" field.
 	RequestPayloadBytes *int `json:"request_payload_bytes,omitempty"`
 	// ResponsePayloadBytes holds the value of the "response_payload_bytes" field.
@@ -32,6 +36,8 @@ type UsageLogDetail struct {
 	RequestTruncated bool `json:"request_truncated,omitempty"`
 	// ResponseTruncated holds the value of the "response_truncated" field.
 	ResponseTruncated bool `json:"response_truncated,omitempty"`
+	// FullPayloadsCleanedAt holds the value of the "full_payloads_cleaned_at" field.
+	FullPayloadsCleanedAt *time.Time `json:"full_payloads_cleaned_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -71,9 +77,9 @@ func (*UsageLogDetail) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case usagelogdetail.FieldID, usagelogdetail.FieldUsageLogID, usagelogdetail.FieldRequestPayloadBytes, usagelogdetail.FieldResponsePayloadBytes:
 			values[i] = new(sql.NullInt64)
-		case usagelogdetail.FieldRequestPayloadJSON, usagelogdetail.FieldResponsePayloadJSON:
+		case usagelogdetail.FieldRequestPayloadJSON, usagelogdetail.FieldResponsePayloadJSON, usagelogdetail.FieldCompressedRequestPayloadJSON, usagelogdetail.FieldCompressedResponsePayloadJSON:
 			values[i] = new(sql.NullString)
-		case usagelogdetail.FieldCreatedAt, usagelogdetail.FieldUpdatedAt:
+		case usagelogdetail.FieldFullPayloadsCleanedAt, usagelogdetail.FieldCreatedAt, usagelogdetail.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -116,6 +122,20 @@ func (_m *UsageLogDetail) assignValues(columns []string, values []any) error {
 				_m.ResponsePayloadJSON = new(string)
 				*_m.ResponsePayloadJSON = value.String
 			}
+		case usagelogdetail.FieldCompressedRequestPayloadJSON:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field compressed_request_payload_json", values[i])
+			} else if value.Valid {
+				_m.CompressedRequestPayloadJSON = new(string)
+				*_m.CompressedRequestPayloadJSON = value.String
+			}
+		case usagelogdetail.FieldCompressedResponsePayloadJSON:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field compressed_response_payload_json", values[i])
+			} else if value.Valid {
+				_m.CompressedResponsePayloadJSON = new(string)
+				*_m.CompressedResponsePayloadJSON = value.String
+			}
 		case usagelogdetail.FieldRequestPayloadBytes:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field request_payload_bytes", values[i])
@@ -141,6 +161,13 @@ func (_m *UsageLogDetail) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field response_truncated", values[i])
 			} else if value.Valid {
 				_m.ResponseTruncated = value.Bool
+			}
+		case usagelogdetail.FieldFullPayloadsCleanedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field full_payloads_cleaned_at", values[i])
+			} else if value.Valid {
+				_m.FullPayloadsCleanedAt = new(time.Time)
+				*_m.FullPayloadsCleanedAt = value.Time
 			}
 		case usagelogdetail.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -208,6 +235,16 @@ func (_m *UsageLogDetail) String() string {
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")
+	if v := _m.CompressedRequestPayloadJSON; v != nil {
+		builder.WriteString("compressed_request_payload_json=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.CompressedResponsePayloadJSON; v != nil {
+		builder.WriteString("compressed_response_payload_json=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
 	if v := _m.RequestPayloadBytes; v != nil {
 		builder.WriteString("request_payload_bytes=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
@@ -223,6 +260,11 @@ func (_m *UsageLogDetail) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("response_truncated=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ResponseTruncated))
+	builder.WriteString(", ")
+	if v := _m.FullPayloadsCleanedAt; v != nil {
+		builder.WriteString("full_payloads_cleaned_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

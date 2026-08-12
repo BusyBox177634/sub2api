@@ -28,6 +28,7 @@ var quickOpsMonitorReservedSuffixes = map[string]struct{}{
 	"keys":               {},
 	"legal":              {},
 	"login":              {},
+	"model-plaza":        {},
 	"monitor":            {},
 	"orders":             {},
 	"payment":            {},

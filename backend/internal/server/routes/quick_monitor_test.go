@@ -20,7 +20,7 @@ func TestRegisterQuickMonitorRoutesReadOnlySubset(t *testing.T) {
 			Dashboard:  adminhandler.NewDashboardHandler(nil, nil),
 			UsageBrief: adminhandler.NewUsageBriefHandler(nil),
 		},
-	}, nil)
+	}, nil, nil)
 	require.Empty(t, router.Routes(), "nil setting service should not register quick monitor routes")
 
 	router = gin.New()

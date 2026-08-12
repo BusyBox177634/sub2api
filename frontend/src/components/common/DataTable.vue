@@ -70,6 +70,7 @@
           <div
             v-for="column in dataColumns"
             :key="column.key"
+            :data-field="column.key"
             class="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
           >
             <span class="shrink-0 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400 sm:max-w-[40%]">

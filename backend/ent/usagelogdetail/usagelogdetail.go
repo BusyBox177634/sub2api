@@ -20,6 +20,10 @@ const (
 	FieldRequestPayloadJSON = "request_payload_json"
 	// FieldResponsePayloadJSON holds the string denoting the response_payload_json field in the database.
 	FieldResponsePayloadJSON = "response_payload_json"
+	// FieldCompressedRequestPayloadJSON holds the string denoting the compressed_request_payload_json field in the database.
+	FieldCompressedRequestPayloadJSON = "compressed_request_payload_json"
+	// FieldCompressedResponsePayloadJSON holds the string denoting the compressed_response_payload_json field in the database.
+	FieldCompressedResponsePayloadJSON = "compressed_response_payload_json"
 	// FieldRequestPayloadBytes holds the string denoting the request_payload_bytes field in the database.
 	FieldRequestPayloadBytes = "request_payload_bytes"
 	// FieldResponsePayloadBytes holds the string denoting the response_payload_bytes field in the database.
@@ -28,6 +32,8 @@ const (
 	FieldRequestTruncated = "request_truncated"
 	// FieldResponseTruncated holds the string denoting the response_truncated field in the database.
 	FieldResponseTruncated = "response_truncated"
+	// FieldFullPayloadsCleanedAt holds the string denoting the full_payloads_cleaned_at field in the database.
+	FieldFullPayloadsCleanedAt = "full_payloads_cleaned_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -51,10 +57,13 @@ var Columns = []string{
 	FieldUsageLogID,
 	FieldRequestPayloadJSON,
 	FieldResponsePayloadJSON,
+	FieldCompressedRequestPayloadJSON,
+	FieldCompressedResponsePayloadJSON,
 	FieldRequestPayloadBytes,
 	FieldResponsePayloadBytes,
 	FieldRequestTruncated,
 	FieldResponseTruncated,
+	FieldFullPayloadsCleanedAt,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -105,6 +114,16 @@ func ByResponsePayloadJSON(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldResponsePayloadJSON, opts...).ToFunc()
 }
 
+// ByCompressedRequestPayloadJSON orders the results by the compressed_request_payload_json field.
+func ByCompressedRequestPayloadJSON(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCompressedRequestPayloadJSON, opts...).ToFunc()
+}
+
+// ByCompressedResponsePayloadJSON orders the results by the compressed_response_payload_json field.
+func ByCompressedResponsePayloadJSON(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCompressedResponsePayloadJSON, opts...).ToFunc()
+}
+
 // ByRequestPayloadBytes orders the results by the request_payload_bytes field.
 func ByRequestPayloadBytes(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRequestPayloadBytes, opts...).ToFunc()
@@ -123,6 +142,11 @@ func ByRequestTruncated(opts ...sql.OrderTermOption) OrderOption {
 // ByResponseTruncated orders the results by the response_truncated field.
 func ByResponseTruncated(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldResponseTruncated, opts...).ToFunc()
+}
+
+// ByFullPayloadsCleanedAt orders the results by the full_payloads_cleaned_at field.
+func ByFullPayloadsCleanedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFullPayloadsCleanedAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -127,7 +127,7 @@ describe('custom README_USER_CUSTOM routes', () => {
     expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/admin/dashboard')
   })
 
-  it.each(['batch-image', 'docs'])('rejects the %s route namespace as a quick-monitor suffix', async (suffix) => {
+  it.each(['batch-image', 'docs', 'model-plaza'])('rejects the %s route namespace as a quick-monitor suffix', async (suffix) => {
     const { default: router } = await import('@/router')
 
     await router.push(`/${suffix}/dashboard`)

@@ -83,6 +83,46 @@ func (_u *UsageLogDetailUpdate) ClearResponsePayloadJSON() *UsageLogDetailUpdate
 	return _u
 }
 
+// SetCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field.
+func (_u *UsageLogDetailUpdate) SetCompressedRequestPayloadJSON(v string) *UsageLogDetailUpdate {
+	_u.mutation.SetCompressedRequestPayloadJSON(v)
+	return _u
+}
+
+// SetNillableCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field if the given value is not nil.
+func (_u *UsageLogDetailUpdate) SetNillableCompressedRequestPayloadJSON(v *string) *UsageLogDetailUpdate {
+	if v != nil {
+		_u.SetCompressedRequestPayloadJSON(*v)
+	}
+	return _u
+}
+
+// ClearCompressedRequestPayloadJSON clears the value of the "compressed_request_payload_json" field.
+func (_u *UsageLogDetailUpdate) ClearCompressedRequestPayloadJSON() *UsageLogDetailUpdate {
+	_u.mutation.ClearCompressedRequestPayloadJSON()
+	return _u
+}
+
+// SetCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field.
+func (_u *UsageLogDetailUpdate) SetCompressedResponsePayloadJSON(v string) *UsageLogDetailUpdate {
+	_u.mutation.SetCompressedResponsePayloadJSON(v)
+	return _u
+}
+
+// SetNillableCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field if the given value is not nil.
+func (_u *UsageLogDetailUpdate) SetNillableCompressedResponsePayloadJSON(v *string) *UsageLogDetailUpdate {
+	if v != nil {
+		_u.SetCompressedResponsePayloadJSON(*v)
+	}
+	return _u
+}
+
+// ClearCompressedResponsePayloadJSON clears the value of the "compressed_response_payload_json" field.
+func (_u *UsageLogDetailUpdate) ClearCompressedResponsePayloadJSON() *UsageLogDetailUpdate {
+	_u.mutation.ClearCompressedResponsePayloadJSON()
+	return _u
+}
+
 // SetRequestPayloadBytes sets the "request_payload_bytes" field.
 func (_u *UsageLogDetailUpdate) SetRequestPayloadBytes(v int) *UsageLogDetailUpdate {
 	_u.mutation.ResetRequestPayloadBytes()
@@ -162,6 +202,26 @@ func (_u *UsageLogDetailUpdate) SetNillableResponseTruncated(v *bool) *UsageLogD
 	if v != nil {
 		_u.SetResponseTruncated(*v)
 	}
+	return _u
+}
+
+// SetFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field.
+func (_u *UsageLogDetailUpdate) SetFullPayloadsCleanedAt(v time.Time) *UsageLogDetailUpdate {
+	_u.mutation.SetFullPayloadsCleanedAt(v)
+	return _u
+}
+
+// SetNillableFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field if the given value is not nil.
+func (_u *UsageLogDetailUpdate) SetNillableFullPayloadsCleanedAt(v *time.Time) *UsageLogDetailUpdate {
+	if v != nil {
+		_u.SetFullPayloadsCleanedAt(*v)
+	}
+	return _u
+}
+
+// ClearFullPayloadsCleanedAt clears the value of the "full_payloads_cleaned_at" field.
+func (_u *UsageLogDetailUpdate) ClearFullPayloadsCleanedAt() *UsageLogDetailUpdate {
+	_u.mutation.ClearFullPayloadsCleanedAt()
 	return _u
 }
 
@@ -255,6 +315,18 @@ func (_u *UsageLogDetailUpdate) sqlSave(ctx context.Context) (_node int, err err
 	if _u.mutation.ResponsePayloadJSONCleared() {
 		_spec.ClearField(usagelogdetail.FieldResponsePayloadJSON, field.TypeString)
 	}
+	if value, ok := _u.mutation.CompressedRequestPayloadJSON(); ok {
+		_spec.SetField(usagelogdetail.FieldCompressedRequestPayloadJSON, field.TypeString, value)
+	}
+	if _u.mutation.CompressedRequestPayloadJSONCleared() {
+		_spec.ClearField(usagelogdetail.FieldCompressedRequestPayloadJSON, field.TypeString)
+	}
+	if value, ok := _u.mutation.CompressedResponsePayloadJSON(); ok {
+		_spec.SetField(usagelogdetail.FieldCompressedResponsePayloadJSON, field.TypeString, value)
+	}
+	if _u.mutation.CompressedResponsePayloadJSONCleared() {
+		_spec.ClearField(usagelogdetail.FieldCompressedResponsePayloadJSON, field.TypeString)
+	}
 	if value, ok := _u.mutation.RequestPayloadBytes(); ok {
 		_spec.SetField(usagelogdetail.FieldRequestPayloadBytes, field.TypeInt, value)
 	}
@@ -278,6 +350,12 @@ func (_u *UsageLogDetailUpdate) sqlSave(ctx context.Context) (_node int, err err
 	}
 	if value, ok := _u.mutation.ResponseTruncated(); ok {
 		_spec.SetField(usagelogdetail.FieldResponseTruncated, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FullPayloadsCleanedAt(); ok {
+		_spec.SetField(usagelogdetail.FieldFullPayloadsCleanedAt, field.TypeTime, value)
+	}
+	if _u.mutation.FullPayloadsCleanedAtCleared() {
+		_spec.ClearField(usagelogdetail.FieldFullPayloadsCleanedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(usagelogdetail.FieldUpdatedAt, field.TypeTime, value)
@@ -385,6 +463,46 @@ func (_u *UsageLogDetailUpdateOne) ClearResponsePayloadJSON() *UsageLogDetailUpd
 	return _u
 }
 
+// SetCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field.
+func (_u *UsageLogDetailUpdateOne) SetCompressedRequestPayloadJSON(v string) *UsageLogDetailUpdateOne {
+	_u.mutation.SetCompressedRequestPayloadJSON(v)
+	return _u
+}
+
+// SetNillableCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field if the given value is not nil.
+func (_u *UsageLogDetailUpdateOne) SetNillableCompressedRequestPayloadJSON(v *string) *UsageLogDetailUpdateOne {
+	if v != nil {
+		_u.SetCompressedRequestPayloadJSON(*v)
+	}
+	return _u
+}
+
+// ClearCompressedRequestPayloadJSON clears the value of the "compressed_request_payload_json" field.
+func (_u *UsageLogDetailUpdateOne) ClearCompressedRequestPayloadJSON() *UsageLogDetailUpdateOne {
+	_u.mutation.ClearCompressedRequestPayloadJSON()
+	return _u
+}
+
+// SetCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field.
+func (_u *UsageLogDetailUpdateOne) SetCompressedResponsePayloadJSON(v string) *UsageLogDetailUpdateOne {
+	_u.mutation.SetCompressedResponsePayloadJSON(v)
+	return _u
+}
+
+// SetNillableCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field if the given value is not nil.
+func (_u *UsageLogDetailUpdateOne) SetNillableCompressedResponsePayloadJSON(v *string) *UsageLogDetailUpdateOne {
+	if v != nil {
+		_u.SetCompressedResponsePayloadJSON(*v)
+	}
+	return _u
+}
+
+// ClearCompressedResponsePayloadJSON clears the value of the "compressed_response_payload_json" field.
+func (_u *UsageLogDetailUpdateOne) ClearCompressedResponsePayloadJSON() *UsageLogDetailUpdateOne {
+	_u.mutation.ClearCompressedResponsePayloadJSON()
+	return _u
+}
+
 // SetRequestPayloadBytes sets the "request_payload_bytes" field.
 func (_u *UsageLogDetailUpdateOne) SetRequestPayloadBytes(v int) *UsageLogDetailUpdateOne {
 	_u.mutation.ResetRequestPayloadBytes()
@@ -464,6 +582,26 @@ func (_u *UsageLogDetailUpdateOne) SetNillableResponseTruncated(v *bool) *UsageL
 	if v != nil {
 		_u.SetResponseTruncated(*v)
 	}
+	return _u
+}
+
+// SetFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field.
+func (_u *UsageLogDetailUpdateOne) SetFullPayloadsCleanedAt(v time.Time) *UsageLogDetailUpdateOne {
+	_u.mutation.SetFullPayloadsCleanedAt(v)
+	return _u
+}
+
+// SetNillableFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field if the given value is not nil.
+func (_u *UsageLogDetailUpdateOne) SetNillableFullPayloadsCleanedAt(v *time.Time) *UsageLogDetailUpdateOne {
+	if v != nil {
+		_u.SetFullPayloadsCleanedAt(*v)
+	}
+	return _u
+}
+
+// ClearFullPayloadsCleanedAt clears the value of the "full_payloads_cleaned_at" field.
+func (_u *UsageLogDetailUpdateOne) ClearFullPayloadsCleanedAt() *UsageLogDetailUpdateOne {
+	_u.mutation.ClearFullPayloadsCleanedAt()
 	return _u
 }
 
@@ -587,6 +725,18 @@ func (_u *UsageLogDetailUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog
 	if _u.mutation.ResponsePayloadJSONCleared() {
 		_spec.ClearField(usagelogdetail.FieldResponsePayloadJSON, field.TypeString)
 	}
+	if value, ok := _u.mutation.CompressedRequestPayloadJSON(); ok {
+		_spec.SetField(usagelogdetail.FieldCompressedRequestPayloadJSON, field.TypeString, value)
+	}
+	if _u.mutation.CompressedRequestPayloadJSONCleared() {
+		_spec.ClearField(usagelogdetail.FieldCompressedRequestPayloadJSON, field.TypeString)
+	}
+	if value, ok := _u.mutation.CompressedResponsePayloadJSON(); ok {
+		_spec.SetField(usagelogdetail.FieldCompressedResponsePayloadJSON, field.TypeString, value)
+	}
+	if _u.mutation.CompressedResponsePayloadJSONCleared() {
+		_spec.ClearField(usagelogdetail.FieldCompressedResponsePayloadJSON, field.TypeString)
+	}
 	if value, ok := _u.mutation.RequestPayloadBytes(); ok {
 		_spec.SetField(usagelogdetail.FieldRequestPayloadBytes, field.TypeInt, value)
 	}
@@ -610,6 +760,12 @@ func (_u *UsageLogDetailUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog
 	}
 	if value, ok := _u.mutation.ResponseTruncated(); ok {
 		_spec.SetField(usagelogdetail.FieldResponseTruncated, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FullPayloadsCleanedAt(); ok {
+		_spec.SetField(usagelogdetail.FieldFullPayloadsCleanedAt, field.TypeTime, value)
+	}
+	if _u.mutation.FullPayloadsCleanedAtCleared() {
+		_spec.ClearField(usagelogdetail.FieldFullPayloadsCleanedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(usagelogdetail.FieldUpdatedAt, field.TypeTime, value)

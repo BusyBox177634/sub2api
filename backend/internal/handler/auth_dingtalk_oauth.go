@@ -113,6 +113,9 @@ func clearDingTalkCookie(c *gin.Context, name string, secure bool) {
 // DingTalkOAuthStart 启动 DingTalk Connect OAuth 登录流程。
 // GET /api/v1/auth/oauth/dingtalk/start?redirect=/dashboard&intent=login
 func (h *AuthHandler) DingTalkOAuthStart(c *gin.Context) {
+	if !h.requireActionCaptchaForOAuthLoginStart(c) {
+		return
+	}
 	cfg, err := h.getDingTalkOAuthConfig(c.Request.Context())
 	if err != nil {
 		frontendCB := dingTalkOAuthDefaultFrontendCB
@@ -165,7 +168,7 @@ func (h *AuthHandler) DingTalkOAuthStart(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, authURL)
+	respondOAuthStart(c, authURL)
 }
 
 // ─── buildDingTalkAuthorizeURL ─────────────────────────────────────────────
@@ -892,7 +895,7 @@ func (h *AuthHandler) syncDingTalkIdentity(ctx context.Context, cfg config.DingT
 			source = "name(fallback)"
 		}
 		if username != "" && h.userService != nil {
-			if _, err := h.userService.UpdateProfile(ctx, userID, service.UpdateProfileRequest{Username: &username}); err != nil {
+			if _, err := h.userService.UpdateUsernameFromTrustedIdentity(ctx, userID, username); err != nil {
 				slog.Warn("dingtalk sync: failed to update username", "user_id", userID, "err", err)
 			} else {
 				slog.Info("dingtalk sync: username updated (register)", "user_id", userID, "username", username, "source", source)

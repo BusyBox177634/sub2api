@@ -115,14 +115,14 @@ func TestUserRepositoryUpdatePersistsUsageBriefPagePreference(t *testing.T) {
 	require.True(t, got.UsageBriefPageEnabled)
 
 	got.UsageBriefPageEnabled = false
-	require.NoError(t, repo.Update(ctx, got))
+	require.NoError(t, repo.Update(ctx, got, service.UserUpdateFields{UsageBriefPreferences: true}))
 	disabled, err := repo.GetByID(ctx, got.ID)
 	require.NoError(t, err)
 	require.False(t, disabled.UsageBriefPageEnabled)
 
 	disabled.UsageBriefPageEnabled = true
 	disabled.UsageBriefAutoEmailEnabled = false
-	require.NoError(t, repo.Update(ctx, disabled))
+	require.NoError(t, repo.Update(ctx, disabled, service.UserUpdateFields{UsageBriefPreferences: true}))
 	enabled, err := repo.GetByID(ctx, disabled.ID)
 	require.NoError(t, err)
 	require.True(t, enabled.UsageBriefPageEnabled)
@@ -193,7 +193,7 @@ func TestUserRepositoryUpdateRejectsNormalizedEmailDuplicate(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, second))
 
 	second.Email = " existing@example.com "
-	err := repo.Update(ctx, second)
+	err := repo.Update(ctx, second, service.UserUpdateFields{Email: true})
 	require.ErrorIs(t, err, service.ErrEmailExists)
 }
 

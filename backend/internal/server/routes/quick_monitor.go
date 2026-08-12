@@ -3,16 +3,23 @@ package routes
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterQuickMonitorRoutes(v1 *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+func RegisterQuickMonitorRoutes(
+	v1 *gin.RouterGroup,
+	h *handler.Handlers,
+	settingService *service.SettingService,
+	panelRateLimiter *middleware.PanelRateLimiter,
+) {
 	if h == nil || h.Admin == nil || settingService == nil {
 		return
 	}
 
 	quick := v1.Group("/quick-monitor/:suffix")
+	quick.Use(panelRateLimiter.PublicIP())
 	quick.Use(quickMonitorSuffixGuard(settingService))
 	{
 		quick.GET("/status", func(c *gin.Context) {

@@ -15,6 +15,7 @@ func TestValidateQuickOpsMonitorSuffix(t *testing.T) {
 		{name: "existing batch image route case insensitive", input: "BATCH-IMAGE", wantSuffix: "BATCH-IMAGE", wantOK: false},
 		{name: "existing docs namespace", input: "docs", wantSuffix: "docs", wantOK: false},
 		{name: "existing admin route", input: "admin", wantSuffix: "admin", wantOK: false},
+		{name: "existing model plaza route", input: "model-plaza", wantSuffix: "model-plaza", wantOK: false},
 		{name: "too short", input: "abc", wantSuffix: "abc", wantOK: false},
 		{name: "multiple path segments", input: "bad/suffix", wantSuffix: "bad/suffix", wantOK: false},
 	}

@@ -29,12 +29,18 @@ func newRegisterRoutesTestRouter(chatHandler *handler.ChatHandler) *gin.Engine {
 		middleware2.JWTAuthMiddleware(func(c *gin.Context) {
 			c.Next()
 		}),
+		middleware2.OptionalJWTAuthMiddleware(func(c *gin.Context) {
+			c.Next()
+		}),
 		middleware2.AdminAuthMiddleware(func(c *gin.Context) {
 			c.Next()
 		}),
 		middleware2.APIKeyAuthMiddleware(func(c *gin.Context) {
 			c.Next()
 		}),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,

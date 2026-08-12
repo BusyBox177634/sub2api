@@ -57,6 +57,34 @@ func (_c *UsageLogDetailCreate) SetNillableResponsePayloadJSON(v *string) *Usage
 	return _c
 }
 
+// SetCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field.
+func (_c *UsageLogDetailCreate) SetCompressedRequestPayloadJSON(v string) *UsageLogDetailCreate {
+	_c.mutation.SetCompressedRequestPayloadJSON(v)
+	return _c
+}
+
+// SetNillableCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field if the given value is not nil.
+func (_c *UsageLogDetailCreate) SetNillableCompressedRequestPayloadJSON(v *string) *UsageLogDetailCreate {
+	if v != nil {
+		_c.SetCompressedRequestPayloadJSON(*v)
+	}
+	return _c
+}
+
+// SetCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field.
+func (_c *UsageLogDetailCreate) SetCompressedResponsePayloadJSON(v string) *UsageLogDetailCreate {
+	_c.mutation.SetCompressedResponsePayloadJSON(v)
+	return _c
+}
+
+// SetNillableCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field if the given value is not nil.
+func (_c *UsageLogDetailCreate) SetNillableCompressedResponsePayloadJSON(v *string) *UsageLogDetailCreate {
+	if v != nil {
+		_c.SetCompressedResponsePayloadJSON(*v)
+	}
+	return _c
+}
+
 // SetRequestPayloadBytes sets the "request_payload_bytes" field.
 func (_c *UsageLogDetailCreate) SetRequestPayloadBytes(v int) *UsageLogDetailCreate {
 	_c.mutation.SetRequestPayloadBytes(v)
@@ -109,6 +137,20 @@ func (_c *UsageLogDetailCreate) SetResponseTruncated(v bool) *UsageLogDetailCrea
 func (_c *UsageLogDetailCreate) SetNillableResponseTruncated(v *bool) *UsageLogDetailCreate {
 	if v != nil {
 		_c.SetResponseTruncated(*v)
+	}
+	return _c
+}
+
+// SetFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field.
+func (_c *UsageLogDetailCreate) SetFullPayloadsCleanedAt(v time.Time) *UsageLogDetailCreate {
+	_c.mutation.SetFullPayloadsCleanedAt(v)
+	return _c
+}
+
+// SetNillableFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field if the given value is not nil.
+func (_c *UsageLogDetailCreate) SetNillableFullPayloadsCleanedAt(v *time.Time) *UsageLogDetailCreate {
+	if v != nil {
+		_c.SetFullPayloadsCleanedAt(*v)
 	}
 	return _c
 }
@@ -254,6 +296,14 @@ func (_c *UsageLogDetailCreate) createSpec() (*UsageLogDetail, *sqlgraph.CreateS
 		_spec.SetField(usagelogdetail.FieldResponsePayloadJSON, field.TypeString, value)
 		_node.ResponsePayloadJSON = &value
 	}
+	if value, ok := _c.mutation.CompressedRequestPayloadJSON(); ok {
+		_spec.SetField(usagelogdetail.FieldCompressedRequestPayloadJSON, field.TypeString, value)
+		_node.CompressedRequestPayloadJSON = &value
+	}
+	if value, ok := _c.mutation.CompressedResponsePayloadJSON(); ok {
+		_spec.SetField(usagelogdetail.FieldCompressedResponsePayloadJSON, field.TypeString, value)
+		_node.CompressedResponsePayloadJSON = &value
+	}
 	if value, ok := _c.mutation.RequestPayloadBytes(); ok {
 		_spec.SetField(usagelogdetail.FieldRequestPayloadBytes, field.TypeInt, value)
 		_node.RequestPayloadBytes = &value
@@ -269,6 +319,10 @@ func (_c *UsageLogDetailCreate) createSpec() (*UsageLogDetail, *sqlgraph.CreateS
 	if value, ok := _c.mutation.ResponseTruncated(); ok {
 		_spec.SetField(usagelogdetail.FieldResponseTruncated, field.TypeBool, value)
 		_node.ResponseTruncated = value
+	}
+	if value, ok := _c.mutation.FullPayloadsCleanedAt(); ok {
+		_spec.SetField(usagelogdetail.FieldFullPayloadsCleanedAt, field.TypeTime, value)
+		_node.FullPayloadsCleanedAt = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(usagelogdetail.FieldCreatedAt, field.TypeTime, value)
@@ -395,6 +449,42 @@ func (u *UsageLogDetailUpsert) ClearResponsePayloadJSON() *UsageLogDetailUpsert 
 	return u
 }
 
+// SetCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field.
+func (u *UsageLogDetailUpsert) SetCompressedRequestPayloadJSON(v string) *UsageLogDetailUpsert {
+	u.Set(usagelogdetail.FieldCompressedRequestPayloadJSON, v)
+	return u
+}
+
+// UpdateCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field to the value that was provided on create.
+func (u *UsageLogDetailUpsert) UpdateCompressedRequestPayloadJSON() *UsageLogDetailUpsert {
+	u.SetExcluded(usagelogdetail.FieldCompressedRequestPayloadJSON)
+	return u
+}
+
+// ClearCompressedRequestPayloadJSON clears the value of the "compressed_request_payload_json" field.
+func (u *UsageLogDetailUpsert) ClearCompressedRequestPayloadJSON() *UsageLogDetailUpsert {
+	u.SetNull(usagelogdetail.FieldCompressedRequestPayloadJSON)
+	return u
+}
+
+// SetCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field.
+func (u *UsageLogDetailUpsert) SetCompressedResponsePayloadJSON(v string) *UsageLogDetailUpsert {
+	u.Set(usagelogdetail.FieldCompressedResponsePayloadJSON, v)
+	return u
+}
+
+// UpdateCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field to the value that was provided on create.
+func (u *UsageLogDetailUpsert) UpdateCompressedResponsePayloadJSON() *UsageLogDetailUpsert {
+	u.SetExcluded(usagelogdetail.FieldCompressedResponsePayloadJSON)
+	return u
+}
+
+// ClearCompressedResponsePayloadJSON clears the value of the "compressed_response_payload_json" field.
+func (u *UsageLogDetailUpsert) ClearCompressedResponsePayloadJSON() *UsageLogDetailUpsert {
+	u.SetNull(usagelogdetail.FieldCompressedResponsePayloadJSON)
+	return u
+}
+
 // SetRequestPayloadBytes sets the "request_payload_bytes" field.
 func (u *UsageLogDetailUpsert) SetRequestPayloadBytes(v int) *UsageLogDetailUpsert {
 	u.Set(usagelogdetail.FieldRequestPayloadBytes, v)
@@ -464,6 +554,24 @@ func (u *UsageLogDetailUpsert) SetResponseTruncated(v bool) *UsageLogDetailUpser
 // UpdateResponseTruncated sets the "response_truncated" field to the value that was provided on create.
 func (u *UsageLogDetailUpsert) UpdateResponseTruncated() *UsageLogDetailUpsert {
 	u.SetExcluded(usagelogdetail.FieldResponseTruncated)
+	return u
+}
+
+// SetFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field.
+func (u *UsageLogDetailUpsert) SetFullPayloadsCleanedAt(v time.Time) *UsageLogDetailUpsert {
+	u.Set(usagelogdetail.FieldFullPayloadsCleanedAt, v)
+	return u
+}
+
+// UpdateFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field to the value that was provided on create.
+func (u *UsageLogDetailUpsert) UpdateFullPayloadsCleanedAt() *UsageLogDetailUpsert {
+	u.SetExcluded(usagelogdetail.FieldFullPayloadsCleanedAt)
+	return u
+}
+
+// ClearFullPayloadsCleanedAt clears the value of the "full_payloads_cleaned_at" field.
+func (u *UsageLogDetailUpsert) ClearFullPayloadsCleanedAt() *UsageLogDetailUpsert {
+	u.SetNull(usagelogdetail.FieldFullPayloadsCleanedAt)
 	return u
 }
 
@@ -580,6 +688,48 @@ func (u *UsageLogDetailUpsertOne) ClearResponsePayloadJSON() *UsageLogDetailUpse
 	})
 }
 
+// SetCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field.
+func (u *UsageLogDetailUpsertOne) SetCompressedRequestPayloadJSON(v string) *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.SetCompressedRequestPayloadJSON(v)
+	})
+}
+
+// UpdateCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field to the value that was provided on create.
+func (u *UsageLogDetailUpsertOne) UpdateCompressedRequestPayloadJSON() *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.UpdateCompressedRequestPayloadJSON()
+	})
+}
+
+// ClearCompressedRequestPayloadJSON clears the value of the "compressed_request_payload_json" field.
+func (u *UsageLogDetailUpsertOne) ClearCompressedRequestPayloadJSON() *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.ClearCompressedRequestPayloadJSON()
+	})
+}
+
+// SetCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field.
+func (u *UsageLogDetailUpsertOne) SetCompressedResponsePayloadJSON(v string) *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.SetCompressedResponsePayloadJSON(v)
+	})
+}
+
+// UpdateCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field to the value that was provided on create.
+func (u *UsageLogDetailUpsertOne) UpdateCompressedResponsePayloadJSON() *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.UpdateCompressedResponsePayloadJSON()
+	})
+}
+
+// ClearCompressedResponsePayloadJSON clears the value of the "compressed_response_payload_json" field.
+func (u *UsageLogDetailUpsertOne) ClearCompressedResponsePayloadJSON() *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.ClearCompressedResponsePayloadJSON()
+	})
+}
+
 // SetRequestPayloadBytes sets the "request_payload_bytes" field.
 func (u *UsageLogDetailUpsertOne) SetRequestPayloadBytes(v int) *UsageLogDetailUpsertOne {
 	return u.Update(func(s *UsageLogDetailUpsert) {
@@ -661,6 +811,27 @@ func (u *UsageLogDetailUpsertOne) SetResponseTruncated(v bool) *UsageLogDetailUp
 func (u *UsageLogDetailUpsertOne) UpdateResponseTruncated() *UsageLogDetailUpsertOne {
 	return u.Update(func(s *UsageLogDetailUpsert) {
 		s.UpdateResponseTruncated()
+	})
+}
+
+// SetFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field.
+func (u *UsageLogDetailUpsertOne) SetFullPayloadsCleanedAt(v time.Time) *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.SetFullPayloadsCleanedAt(v)
+	})
+}
+
+// UpdateFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field to the value that was provided on create.
+func (u *UsageLogDetailUpsertOne) UpdateFullPayloadsCleanedAt() *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.UpdateFullPayloadsCleanedAt()
+	})
+}
+
+// ClearFullPayloadsCleanedAt clears the value of the "full_payloads_cleaned_at" field.
+func (u *UsageLogDetailUpsertOne) ClearFullPayloadsCleanedAt() *UsageLogDetailUpsertOne {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.ClearFullPayloadsCleanedAt()
 	})
 }
 
@@ -945,6 +1116,48 @@ func (u *UsageLogDetailUpsertBulk) ClearResponsePayloadJSON() *UsageLogDetailUps
 	})
 }
 
+// SetCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field.
+func (u *UsageLogDetailUpsertBulk) SetCompressedRequestPayloadJSON(v string) *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.SetCompressedRequestPayloadJSON(v)
+	})
+}
+
+// UpdateCompressedRequestPayloadJSON sets the "compressed_request_payload_json" field to the value that was provided on create.
+func (u *UsageLogDetailUpsertBulk) UpdateCompressedRequestPayloadJSON() *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.UpdateCompressedRequestPayloadJSON()
+	})
+}
+
+// ClearCompressedRequestPayloadJSON clears the value of the "compressed_request_payload_json" field.
+func (u *UsageLogDetailUpsertBulk) ClearCompressedRequestPayloadJSON() *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.ClearCompressedRequestPayloadJSON()
+	})
+}
+
+// SetCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field.
+func (u *UsageLogDetailUpsertBulk) SetCompressedResponsePayloadJSON(v string) *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.SetCompressedResponsePayloadJSON(v)
+	})
+}
+
+// UpdateCompressedResponsePayloadJSON sets the "compressed_response_payload_json" field to the value that was provided on create.
+func (u *UsageLogDetailUpsertBulk) UpdateCompressedResponsePayloadJSON() *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.UpdateCompressedResponsePayloadJSON()
+	})
+}
+
+// ClearCompressedResponsePayloadJSON clears the value of the "compressed_response_payload_json" field.
+func (u *UsageLogDetailUpsertBulk) ClearCompressedResponsePayloadJSON() *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.ClearCompressedResponsePayloadJSON()
+	})
+}
+
 // SetRequestPayloadBytes sets the "request_payload_bytes" field.
 func (u *UsageLogDetailUpsertBulk) SetRequestPayloadBytes(v int) *UsageLogDetailUpsertBulk {
 	return u.Update(func(s *UsageLogDetailUpsert) {
@@ -1026,6 +1239,27 @@ func (u *UsageLogDetailUpsertBulk) SetResponseTruncated(v bool) *UsageLogDetailU
 func (u *UsageLogDetailUpsertBulk) UpdateResponseTruncated() *UsageLogDetailUpsertBulk {
 	return u.Update(func(s *UsageLogDetailUpsert) {
 		s.UpdateResponseTruncated()
+	})
+}
+
+// SetFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field.
+func (u *UsageLogDetailUpsertBulk) SetFullPayloadsCleanedAt(v time.Time) *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.SetFullPayloadsCleanedAt(v)
+	})
+}
+
+// UpdateFullPayloadsCleanedAt sets the "full_payloads_cleaned_at" field to the value that was provided on create.
+func (u *UsageLogDetailUpsertBulk) UpdateFullPayloadsCleanedAt() *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.UpdateFullPayloadsCleanedAt()
+	})
+}
+
+// ClearFullPayloadsCleanedAt clears the value of the "full_payloads_cleaned_at" field.
+func (u *UsageLogDetailUpsertBulk) ClearFullPayloadsCleanedAt() *UsageLogDetailUpsertBulk {
+	return u.Update(func(s *UsageLogDetailUpsert) {
+		s.ClearFullPayloadsCleanedAt()
 	})
 }
 

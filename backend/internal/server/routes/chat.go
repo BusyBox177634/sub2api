@@ -14,6 +14,7 @@ func RegisterChatRoutes(
 	h *handler.Handlers,
 	jwtAuth middleware.JWTAuthMiddleware,
 	settingService *service.SettingService,
+	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
 	if h.Chat == nil {
 		return
@@ -22,6 +23,7 @@ func RegisterChatRoutes(
 	authenticated := v1.Group("/chat")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(middleware.BackendModeUserGuard(settingService))
+	authenticated.Use(panelRateLimiter.Global())
 	{
 		authenticated.GET("/api-keys", h.Chat.ListAPIKeys)
 		authenticated.GET("/models", h.Chat.ListModels)

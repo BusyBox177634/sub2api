@@ -33,6 +33,14 @@ func (UsageLogDetail) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		field.String("compressed_request_payload_json").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		field.String("compressed_response_payload_json").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "text"}),
 		field.Int("request_payload_bytes").
 			Optional().
 			Nillable(),
@@ -43,6 +51,10 @@ func (UsageLogDetail) Fields() []ent.Field {
 			Default(false),
 		field.Bool("response_truncated").
 			Default(false),
+		field.Time("full_payloads_cleaned_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable().

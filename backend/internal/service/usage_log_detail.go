@@ -339,14 +339,6 @@ func cloneStringPtr(value *string) *string {
 	return &copied
 }
 
-func cloneTimePtr(value *time.Time) *time.Time {
-	if value == nil {
-		return nil
-	}
-	copied := *value
-	return &copied
-}
-
 func derefString(value *string) string {
 	if value == nil {
 		return ""

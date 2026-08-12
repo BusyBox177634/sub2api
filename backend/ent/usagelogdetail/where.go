@@ -70,6 +70,16 @@ func ResponsePayloadJSON(v string) predicate.UsageLogDetail {
 	return predicate.UsageLogDetail(sql.FieldEQ(FieldResponsePayloadJSON, v))
 }
 
+// CompressedRequestPayloadJSON applies equality check predicate on the "compressed_request_payload_json" field. It's identical to CompressedRequestPayloadJSONEQ.
+func CompressedRequestPayloadJSON(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEQ(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSON applies equality check predicate on the "compressed_response_payload_json" field. It's identical to CompressedResponsePayloadJSONEQ.
+func CompressedResponsePayloadJSON(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEQ(FieldCompressedResponsePayloadJSON, v))
+}
+
 // RequestPayloadBytes applies equality check predicate on the "request_payload_bytes" field. It's identical to RequestPayloadBytesEQ.
 func RequestPayloadBytes(v int) predicate.UsageLogDetail {
 	return predicate.UsageLogDetail(sql.FieldEQ(FieldRequestPayloadBytes, v))
@@ -88,6 +98,11 @@ func RequestTruncated(v bool) predicate.UsageLogDetail {
 // ResponseTruncated applies equality check predicate on the "response_truncated" field. It's identical to ResponseTruncatedEQ.
 func ResponseTruncated(v bool) predicate.UsageLogDetail {
 	return predicate.UsageLogDetail(sql.FieldEQ(FieldResponseTruncated, v))
+}
+
+// FullPayloadsCleanedAt applies equality check predicate on the "full_payloads_cleaned_at" field. It's identical to FullPayloadsCleanedAtEQ.
+func FullPayloadsCleanedAt(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEQ(FieldFullPayloadsCleanedAt, v))
 }
 
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
@@ -270,6 +285,156 @@ func ResponsePayloadJSONContainsFold(v string) predicate.UsageLogDetail {
 	return predicate.UsageLogDetail(sql.FieldContainsFold(FieldResponsePayloadJSON, v))
 }
 
+// CompressedRequestPayloadJSONEQ applies the EQ predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONEQ(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEQ(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONNEQ applies the NEQ predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONNEQ(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNEQ(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONIn applies the In predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONIn(vs ...string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldIn(FieldCompressedRequestPayloadJSON, vs...))
+}
+
+// CompressedRequestPayloadJSONNotIn applies the NotIn predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONNotIn(vs ...string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNotIn(FieldCompressedRequestPayloadJSON, vs...))
+}
+
+// CompressedRequestPayloadJSONGT applies the GT predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONGT(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldGT(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONGTE applies the GTE predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONGTE(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldGTE(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONLT applies the LT predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONLT(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldLT(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONLTE applies the LTE predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONLTE(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldLTE(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONContains applies the Contains predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONContains(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldContains(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONHasPrefix applies the HasPrefix predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONHasPrefix(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldHasPrefix(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONHasSuffix applies the HasSuffix predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONHasSuffix(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldHasSuffix(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONIsNil applies the IsNil predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONIsNil() predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldIsNull(FieldCompressedRequestPayloadJSON))
+}
+
+// CompressedRequestPayloadJSONNotNil applies the NotNil predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONNotNil() predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNotNull(FieldCompressedRequestPayloadJSON))
+}
+
+// CompressedRequestPayloadJSONEqualFold applies the EqualFold predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONEqualFold(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEqualFold(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedRequestPayloadJSONContainsFold applies the ContainsFold predicate on the "compressed_request_payload_json" field.
+func CompressedRequestPayloadJSONContainsFold(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldContainsFold(FieldCompressedRequestPayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONEQ applies the EQ predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONEQ(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEQ(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONNEQ applies the NEQ predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONNEQ(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNEQ(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONIn applies the In predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONIn(vs ...string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldIn(FieldCompressedResponsePayloadJSON, vs...))
+}
+
+// CompressedResponsePayloadJSONNotIn applies the NotIn predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONNotIn(vs ...string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNotIn(FieldCompressedResponsePayloadJSON, vs...))
+}
+
+// CompressedResponsePayloadJSONGT applies the GT predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONGT(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldGT(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONGTE applies the GTE predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONGTE(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldGTE(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONLT applies the LT predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONLT(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldLT(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONLTE applies the LTE predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONLTE(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldLTE(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONContains applies the Contains predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONContains(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldContains(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONHasPrefix applies the HasPrefix predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONHasPrefix(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldHasPrefix(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONHasSuffix applies the HasSuffix predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONHasSuffix(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldHasSuffix(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONIsNil applies the IsNil predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONIsNil() predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldIsNull(FieldCompressedResponsePayloadJSON))
+}
+
+// CompressedResponsePayloadJSONNotNil applies the NotNil predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONNotNil() predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNotNull(FieldCompressedResponsePayloadJSON))
+}
+
+// CompressedResponsePayloadJSONEqualFold applies the EqualFold predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONEqualFold(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEqualFold(FieldCompressedResponsePayloadJSON, v))
+}
+
+// CompressedResponsePayloadJSONContainsFold applies the ContainsFold predicate on the "compressed_response_payload_json" field.
+func CompressedResponsePayloadJSONContainsFold(v string) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldContainsFold(FieldCompressedResponsePayloadJSON, v))
+}
+
 // RequestPayloadBytesEQ applies the EQ predicate on the "request_payload_bytes" field.
 func RequestPayloadBytesEQ(v int) predicate.UsageLogDetail {
 	return predicate.UsageLogDetail(sql.FieldEQ(FieldRequestPayloadBytes, v))
@@ -388,6 +553,56 @@ func ResponseTruncatedEQ(v bool) predicate.UsageLogDetail {
 // ResponseTruncatedNEQ applies the NEQ predicate on the "response_truncated" field.
 func ResponseTruncatedNEQ(v bool) predicate.UsageLogDetail {
 	return predicate.UsageLogDetail(sql.FieldNEQ(FieldResponseTruncated, v))
+}
+
+// FullPayloadsCleanedAtEQ applies the EQ predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtEQ(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldEQ(FieldFullPayloadsCleanedAt, v))
+}
+
+// FullPayloadsCleanedAtNEQ applies the NEQ predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtNEQ(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNEQ(FieldFullPayloadsCleanedAt, v))
+}
+
+// FullPayloadsCleanedAtIn applies the In predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtIn(vs ...time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldIn(FieldFullPayloadsCleanedAt, vs...))
+}
+
+// FullPayloadsCleanedAtNotIn applies the NotIn predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtNotIn(vs ...time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNotIn(FieldFullPayloadsCleanedAt, vs...))
+}
+
+// FullPayloadsCleanedAtGT applies the GT predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtGT(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldGT(FieldFullPayloadsCleanedAt, v))
+}
+
+// FullPayloadsCleanedAtGTE applies the GTE predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtGTE(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldGTE(FieldFullPayloadsCleanedAt, v))
+}
+
+// FullPayloadsCleanedAtLT applies the LT predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtLT(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldLT(FieldFullPayloadsCleanedAt, v))
+}
+
+// FullPayloadsCleanedAtLTE applies the LTE predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtLTE(v time.Time) predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldLTE(FieldFullPayloadsCleanedAt, v))
+}
+
+// FullPayloadsCleanedAtIsNil applies the IsNil predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtIsNil() predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldIsNull(FieldFullPayloadsCleanedAt))
+}
+
+// FullPayloadsCleanedAtNotNil applies the NotNil predicate on the "full_payloads_cleaned_at" field.
+func FullPayloadsCleanedAtNotNil() predicate.UsageLogDetail {
+	return predicate.UsageLogDetail(sql.FieldNotNull(FieldFullPayloadsCleanedAt))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
