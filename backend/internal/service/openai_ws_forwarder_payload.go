@@ -154,6 +154,9 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	// 管理员显式配置传入（上面写进 headers 的值只在强制统一被关闭时才参与配对）。
 	if account != nil && account.Type == AccountTypeOAuth {
 		enforceCodexIdentityHeadersWithUA(headers, s.codexIdentityOverrideUA(account))
+		// CPA 身份映射必须在本地 API Key 会话隔离及统一身份头之后执行，
+		// 保证握手上实际发送的是 CPA 派生的 session/thread/window 标识。
+		applyCodexCPAIdentityHeaders(headers, codexCPAIdentityStateFromContext(c))
 	}
 
 	// 账号级请求头覆写（仅 openai api_key 账号启用时生效；OAuth 路径 no-op）。

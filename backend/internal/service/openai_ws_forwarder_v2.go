@@ -36,6 +36,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if s == nil || account == nil {
 		return nil, wrapOpenAIWSFallback("invalid_state", errors.New("service or account is nil"))
 	}
+	identityState := codexCPAIdentityStateFromContext(c)
 	responseModelObserver := &upstreamResponseModelObserver{}
 
 	wsURL, err := s.buildOpenAIResponsesWSURL(account)
@@ -407,6 +408,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if clientDisconnected {
 			return
 		}
+		message = exposeCodexCPAIdentityResponsePayload(message, identityState)
 		frame := make([]byte, 0, len(message)+8)
 		frame = append(frame, "data: "...)
 		frame = append(frame, message...)
@@ -469,6 +471,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					pendingJSONDocuments = append(pendingJSONDocuments, documents[1:]...)
 				}
 			}
+		}
+		if readErr == nil {
+			message = normalizeCodexCPAIdentityResponsePayload(message, identityState)
 		}
 		if readErr == nil && !json.Valid(message) {
 			eventType, _, _ := parseOpenAIWSEventEnvelope(message)
@@ -725,7 +730,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			responseID = strings.TrimSpace(gjson.GetBytes(finalResponse, "id").String())
 		}
 
-		c.Data(http.StatusOK, "application/json", finalResponse)
+		c.Data(http.StatusOK, "application/json", exposeCodexCPAIdentityResponsePayload(finalResponse, identityState))
 	} else {
 		flushStreamWriter(true)
 	}

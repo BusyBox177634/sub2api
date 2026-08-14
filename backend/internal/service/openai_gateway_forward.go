@@ -103,6 +103,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	requestView := newOpenAIRequestView(body)
 	reqModel, reqStream, promptCacheKey := requestView.Model, requestView.Stream, requestView.PromptCacheKey
 	originalModel := reqModel
+	if account.Type == AccountTypeOAuth {
+		var clientHeaders http.Header
+		if c != nil && c.Request != nil {
+			clientHeaders = c.Request.Header
+		}
+		setCodexCPAIdentityState(c, prepareCodexCPAIdentityState(account, originalBody, clientHeaders))
+	}
 
 	if account.Platform == PlatformGrok {
 		return s.forwardGrokResponses(ctx, c, account, body, originalModel, reqStream, startTime)
@@ -399,6 +406,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
+		var clientHeaders http.Header
+		if c != nil && c.Request != nil {
+			clientHeaders = c.Request.Header
+		}
+		cpaIdentityState := codexCPAIdentityStateFromContext(c)
+		if cpaIdentityState == nil {
+			cpaIdentityState = prepareCodexCPAIdentityState(account, originalBody, clientHeaders)
+			setCodexCPAIdentityState(c, cpaIdentityState)
+		}
 		codexResult := codexTransformResult{}
 		if compatMessagesBridge {
 			codexResult = applyCodexOAuthTransformWithOptions(decoded, codexOAuthTransformOptions{IsCodexCLI: isCodexCLI, IsCompact: isCompactRequest, SkipDefaultInstructions: true, PreserveToolCallIDs: true})
@@ -411,16 +427,29 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			markDecodedModified()
 		}
 		// 带真实 device_id 时补齐 client_metadata 安装标识，与真实 Codex 对齐（compact 形态不同，跳过）。
-		if !isCompactRequest && applyCodexClientMetadata(decoded, account) {
+		// CPA 模式只映射客户端真实携带的 installation_id，与 CLIProxyAPI 一致，不做本地注入。
+		if cpaIdentityState == nil && !isCompactRequest && applyCodexClientMetadata(decoded, account) {
 			markDecodedModified()
 		}
-		// 指纹收敛：一次性解析收敛 ID，请求体和出站头共享同一份 IDs（保证 turn_id 等随机字段一致）。
-		// fingerprintIDs 在此处解析，后续 buildUpstreamRequest 中使用同一份。
-		if !isCompactRequest {
-			var clientHeaders http.Header
-			if c != nil && c.Request != nil {
-				clientHeaders = c.Request.Header
+		if codexResult.NormalizedModel != "" {
+			upstreamModel = codexResult.NormalizedModel
+		}
+		if codexResult.PromptCacheKey != "" {
+			promptCacheKey = codexResult.PromptCacheKey
+		}
+		if cpaIdentityState != nil {
+			if promptCacheKey == "" {
+				promptCacheKey = s.ExtractSessionID(c, originalBody)
 			}
+			if applyCodexCPAIdentityBody(decoded, cpaIdentityState) {
+				markDecodedModified()
+			}
+			if cpaIdentityState.promptCacheKey != "" {
+				promptCacheKey = cpaIdentityState.promptCacheKey
+			}
+		} else if !isCompactRequest {
+			// 指纹收敛：一次性解析收敛 ID，请求体和出站头共享同一份 IDs（保证 turn_id 等随机字段一致）。
+			// fingerprintIDs 在此处解析，后续 buildUpstreamRequest 中使用同一份。
 			fpIDs := resolveCodexFingerprintIDsFromRequest(account, clientHeaders)
 			if fpIDs != nil {
 				if applyCodexFingerprintClientMetadata(decoded, fpIDs) {
@@ -431,12 +460,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if c != nil && fpIDs != nil {
 				c.Set("codex_fingerprint_ids", fpIDs)
 			}
-		}
-		if codexResult.NormalizedModel != "" {
-			upstreamModel = codexResult.NormalizedModel
-		}
-		if codexResult.PromptCacheKey != "" {
-			promptCacheKey = codexResult.PromptCacheKey
 		}
 	}
 
@@ -1029,6 +1052,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 }
 
 func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
+	var cpaIdentityState *codexCPAIdentityState
+	var cpaPrepareErr error
+	body, promptCacheKey, cpaIdentityState, cpaPrepareErr = prepareCodexCPAUpstreamPayload(c, account, body, promptCacheKey)
+	if cpaPrepareErr != nil {
+		return nil, cpaPrepareErr
+	}
+
 	// Determine target URL based on account type
 	var targetURL string
 	switch account.Type {
@@ -1115,7 +1145,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		if promptCacheKey != "" {
 			isolated := isolateOpenAISessionID(apiKeyID, promptCacheKey)
 			req.Header.Set("session_id", isolated)
-			if !compatMessagesBridge || clientConversationID != "" {
+			// CLIProxyAPI 的 HTTP CPA 路径只在调用方已有 Conversation_id 时
+			// 才映射它；不要因 Sub2API 的默认补齐额外创建该头。
+			if clientConversationID != "" || (cpaIdentityState == nil && !compatMessagesBridge) {
 				req.Header.Set("conversation_id", isolated)
 			}
 		}
@@ -1137,9 +1169,11 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		req.Header.Set("user-agent", codexCLIUserAgent)
 	}
 
-	// 指纹收敛：使用 Forward() 中预计算的收敛 ID 改写出站头，与请求体使用同一份 IDs。
+	// CPA 模式在本地 session 隔离之后执行，以 CPA 派生值作为最终上游标识。
 	if account.Type == AccountTypeOAuth && c != nil {
-		if fpIDs, ok := c.Get("codex_fingerprint_ids"); ok {
+		if cpaIdentityState != nil {
+			applyCodexCPAIdentityHeaders(req.Header, cpaIdentityState)
+		} else if fpIDs, ok := c.Get("codex_fingerprint_ids"); ok {
 			if ids, ok := fpIDs.(*codexFingerprintIDs); ok {
 				applyCodexFingerprintHeaders(req.Header, ids)
 			}

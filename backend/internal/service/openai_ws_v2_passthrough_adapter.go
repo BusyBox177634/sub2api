@@ -28,6 +28,58 @@ type openAIWSClientFrameConn struct {
 	// The relay observes upstream payloads, while clients must keep seeing the
 	// model identifier they supplied for the current turn.
 	restoreResponseModel func([]byte) []byte
+	// CPA normalizes payloads before relay processing; restore the client-facing
+	// identifiers only at the final downstream write boundary.
+	restoreIdentityPayload func([]byte) []byte
+}
+
+type openAIWSCPAIdentityStateHolder struct {
+	state atomic.Pointer[codexCPAIdentityState]
+}
+
+func (h *openAIWSCPAIdentityStateHolder) Store(state *codexCPAIdentityState) {
+	if h != nil {
+		h.state.Store(state)
+	}
+}
+
+func (h *openAIWSCPAIdentityStateHolder) Load() *codexCPAIdentityState {
+	if h == nil {
+		return nil
+	}
+	return h.state.Load()
+}
+
+type openAIWSCPAResponseFrameConn struct {
+	inner openaiwsv2.FrameConn
+	state *openAIWSCPAIdentityStateHolder
+}
+
+var _ openaiwsv2.FrameConn = (*openAIWSCPAResponseFrameConn)(nil)
+
+func (c *openAIWSCPAResponseFrameConn) ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error) {
+	if c == nil || c.inner == nil {
+		return coderws.MessageText, nil, errOpenAIWSConnClosed
+	}
+	msgType, payload, err := c.inner.ReadFrame(ctx)
+	if err == nil && msgType == coderws.MessageText {
+		payload = normalizeCodexCPAIdentityResponsePayload(payload, c.state.Load())
+	}
+	return msgType, payload, err
+}
+
+func (c *openAIWSCPAResponseFrameConn) WriteFrame(ctx context.Context, msgType coderws.MessageType, payload []byte) error {
+	if c == nil || c.inner == nil {
+		return errOpenAIWSConnClosed
+	}
+	return c.inner.WriteFrame(ctx, msgType, payload)
+}
+
+func (c *openAIWSCPAResponseFrameConn) Close() error {
+	if c == nil || c.inner == nil {
+		return nil
+	}
+	return c.inner.Close()
 }
 
 // openAIWSPolicyEnforcingFrameConn wraps a client-side FrameConn and runs
@@ -639,6 +691,9 @@ func (c *openAIWSClientFrameConn) WriteFrame(ctx context.Context, msgType coderw
 		if c.restoreResponseModel != nil {
 			payload = c.restoreResponseModel(payload)
 		}
+		if c.restoreIdentityPayload != nil {
+			payload = c.restoreIdentityPayload(payload)
+		}
 	}
 	return c.conn.Write(ctx, msgType, payload)
 }
@@ -674,6 +729,25 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if err := validateOpenAIWSBearerToken(account, token); err != nil {
 		return err
 	}
+	cpaIdentityState := &openAIWSCPAIdentityStateHolder{}
+	applyCPAIdentity := func(originalPayload []byte, upstreamPayload []byte) ([]byte, error) {
+		if account.Type != AccountTypeOAuth {
+			cpaIdentityState.Store(nil)
+			return upstreamPayload, nil
+		}
+		var clientHeaders http.Header
+		if c != nil && c.Request != nil {
+			clientHeaders = c.Request.Header
+		}
+		updatedPayload, identityState, identityErr := applyCodexCPAIdentityPayloadFromOriginal(account, originalPayload, upstreamPayload, clientHeaders)
+		if identityErr != nil {
+			return nil, identityErr
+		}
+		setCodexCPAIdentityState(c, identityState)
+		cpaIdentityState.Store(identityState)
+		return updatedPayload, nil
+	}
+	firstClientPayload := append([]byte(nil), firstClientMessage...)
 	if account.IsOpenAIOAuth() && isOpenAIResponsesLiteWebSocketPayload(firstClientMessage) {
 		liteFirstMessage, _, liteErr := normalizeOpenAIResponsesLiteToolsPayload(firstClientMessage)
 		if liteErr != nil {
@@ -752,6 +826,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, blocked.Message, blocked)
 	}
 	firstClientMessage = updatedFirst
+	firstClientMessage, cpaErr := applyCPAIdentity(firstClientPayload, firstClientMessage)
+	if cpaErr != nil {
+		return fmt.Errorf("apply CPA websocket identity: %w", cpaErr)
+	}
 
 	// 在 policy filter 之后再提取 service_tier / reasoning_effort 用于
 	// usage 上报：filter
@@ -884,8 +962,12 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if !ok {
 		return errors.New("openai ws passthrough upstream connection does not support frame relay")
 	}
+	normalizedUpstreamFrameConn := &openAIWSCPAResponseFrameConn{
+		inner: upstreamFrameConn,
+		state: cpaIdentityState,
+	}
 	relayUpstreamFrameConn := &openAIWSPassthroughFirstOutputFrameConn{
-		inner:             upstreamFrameConn,
+		inner:             normalizedUpstreamFrameConn,
 		activeReadTimeout: s.openAIWSPassthroughIdleTimeout(),
 		deadlineChanged:   make(chan struct{}, 1),
 		resolveDeadline: func(payload []byte) openAIWSPassthroughFirstOutputDeadline {
@@ -928,6 +1010,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			requestModel, upstreamModel := usageMeta.turnModels("")
 			return replaceOpenAIWSMessageModel(payload, upstreamModel, requestModel)
 		},
+		restoreIdentityPayload: func(payload []byte) []byte {
+			return exposeCodexCPAIdentityResponsePayload(payload, cpaIdentityState.Load())
+		},
 	}
 	policyClientConn := &openAIWSPolicyEnforcingFrameConn{
 		inner: clientFrameConn,
@@ -939,6 +1024,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if msgType != coderws.MessageText {
 				return payload, nil, nil
 			}
+			originalPayload := append([]byte(nil), payload...)
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			isResponseCreate := eventType == "response.create"
 			acceptedTurn := false
@@ -1035,6 +1121,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			//     service_tier 时按 default 处理，billing 应如实反映。
 			if policyErr == nil && blocked == nil && isResponseCreate {
 				usageMeta.updateFromResponseCreate(out, model, requestModelForThisFrame)
+				out, policyErr = applyCPAIdentity(originalPayload, out)
+				if policyErr != nil {
+					return payload, nil, fmt.Errorf("apply CPA websocket identity: %w", policyErr)
+				}
 				acceptedTurn = true
 			}
 			return out, blocked, policyErr
