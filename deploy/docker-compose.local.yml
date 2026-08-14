@@ -199,6 +199,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # ===========================================================================
   # PostgreSQL Database
