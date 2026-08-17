@@ -1244,7 +1244,6 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthNonStreamingResponse(
 		}
 		return OpenAIUsage{}, 0, nil, err
 	}
-	body = normalizeCodexCPAIdentityResponsePayload(body, codexCPAIdentityStateFromContext(c))
 
 	var usage OpenAIUsage
 	forEachOpenAISSEDataPayload(string(body), func(data []byte) {
@@ -1315,7 +1314,6 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	streamPrefix string,
 	fallbackModel string,
 ) (OpenAIUsage, int, []string, *int, error) {
-	identityState := codexCPAIdentityStateFromContext(c)
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -1352,7 +1350,6 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 		if processDataDone || processDataErr != nil {
 			return
 		}
-		dataBytes = normalizeCodexCPAIdentityResponsePayload(dataBytes, identityState)
 		if firstTokenMs == nil {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms

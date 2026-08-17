@@ -181,7 +181,6 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		return nil, errors.New("client websocket writer is nil")
 	}
 	responseModelObserver := &upstreamResponseModelObserver{}
-	identityState := codexCPAIdentityStateFromContext(c)
 
 	body, err := prepareOpenAIWSHTTPBridgeBody(payload)
 	if err != nil {
@@ -244,7 +243,6 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, openAIWSHTTPBridgeErrorBodyLimitBytes))
-		respBody = normalizeCodexCPAIdentityResponsePayload(respBody, identityState)
 		upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
 		if upstreamMsg == "" {
 			upstreamMsg = http.StatusText(resp.StatusCode)
@@ -355,7 +353,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			continue
 		}
 
-		upstreamMessage := normalizeCodexCPAIdentityResponsePayload([]byte(trimmedData), identityState)
+		upstreamMessage := []byte(trimmedData)
 		if normalized, changed := normalizeCompletedImageGenerationStatus(upstreamMessage); changed {
 			upstreamMessage = normalized
 		}
@@ -431,7 +429,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		// server_is_overloaded / slow_down 判致命并终止会话，改写后走客户端内置
 		// 重试。账号状态与终止事件判定（下方 handleOpenAIWSTerminalTransientFailure）
 		// 仍使用未改写的 upstreamMessage。
-		clientMessage := exposeCodexCPAIdentityResponsePayload(upstreamMessage, identityState)
+		clientMessage := upstreamMessage
 		if eventType == "error" || eventType == "response.failed" {
 			if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(clientMessage); changed {
 				clientMessage = rewritten

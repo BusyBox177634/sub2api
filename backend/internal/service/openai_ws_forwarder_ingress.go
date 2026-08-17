@@ -147,7 +147,6 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	type openAIWSClientPayload struct {
 		payloadRaw         []byte
 		rawForHash         []byte
-		identityState      *codexCPAIdentityState
 		promptCacheKey     string
 		previousResponseID string
 		originalModel      string
@@ -396,28 +395,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 		normalized = policyApplied
-		identityState := (*codexCPAIdentityState)(nil)
-		if account.Type == AccountTypeOAuth {
-			var clientHeaders http.Header
-			if c != nil && c.Request != nil {
-				clientHeaders = c.Request.Header
-			}
-			var cpaErr error
-			normalized, identityState, cpaErr = applyCodexCPAIdentityPayloadFromOriginal(account, trimmed, normalized, clientHeaders)
-			if cpaErr != nil {
-				return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", cpaErr)
-			}
-			setCodexCPAIdentityState(c, identityState)
-			if identityState != nil && identityState.promptCacheKey != "" {
-				promptCacheKey = identityState.promptCacheKey
-			}
-		}
 		ingressSessionOriginalModel = originalModel
 
 		return openAIWSClientPayload{
 			payloadRaw:         normalized,
 			rawForHash:         trimmed,
-			identityState:      identityState,
 			promptCacheKey:     promptCacheKey,
 			previousResponseID: previousResponseID,
 			originalModel:      originalModel,
@@ -815,7 +797,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return lease, nil
 	}
 
-	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, imageBillingModel string, imageSizeTier string, imageInputSize string, identityState *codexCPAIdentityState) (*OpenAIForwardResult, error) {
+	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, imageBillingModel string, imageSizeTier string, imageInputSize string) (*OpenAIForwardResult, error) {
 		responseModelObserver := &upstreamResponseModelObserver{}
 		if lease == nil {
 			return nil, errors.New("upstream websocket lease is nil")
@@ -879,7 +861,6 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					wroteDownstream,
 				)
 			}
-			upstreamMessage = normalizeCodexCPAIdentityResponsePayload(upstreamMessage, identityState)
 			if normalized, changed := normalizeCompletedImageGenerationStatus(upstreamMessage); changed {
 				upstreamMessage = normalized
 			}
@@ -1007,8 +988,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					}
 				}
 				replayCollector.AddEvent(eventType, upstreamMessage)
-				clientMessage := exposeCodexCPAIdentityResponsePayload(upstreamMessage, identityState)
-				if err := writeClientMessage(clientMessage); err != nil {
+				if err := writeClientMessage(upstreamMessage); err != nil {
 					if isOpenAIWSClientDisconnectError(err) {
 						clientDisconnected = true
 						closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)
@@ -1093,7 +1073,6 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	currentPayload := firstPayload.payloadRaw
-	currentIdentityState := firstPayload.identityState
 	currentOriginalModel := firstPayload.originalModel
 	currentImageBillingModel := firstPayload.imageBillingModel
 	currentImageSizeTier := firstPayload.imageSizeTier
@@ -1586,7 +1565,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 
-		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize, currentIdentityState)
+		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize)
 		if relayErr != nil {
 			lastTurnClean = false
 			if recoverIngressPrevResponseNotFound(relayErr, turn, connID) {
@@ -1729,7 +1708,6 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 		}
 		currentPayload = nextPayload.payloadRaw
-		currentIdentityState = nextPayload.identityState
 		currentOriginalModel = nextPayload.originalModel
 		currentImageBillingModel = nextPayload.imageBillingModel
 		currentImageSizeTier = nextPayload.imageSizeTier

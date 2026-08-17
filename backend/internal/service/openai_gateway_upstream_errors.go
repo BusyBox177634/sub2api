@@ -322,8 +322,6 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 ) (*OpenAIForwardResult, error) {
 	body := s.readUpstreamErrorBody(resp)
 	body = s.redactAgentIdentitySensitiveBody(ctx, account, body)
-	cpaIdentityState := codexCPAIdentityStateFromContext(c)
-	body = normalizeCodexCPAIdentityResponsePayload(body, cpaIdentityState)
 
 	// cyber_policy 硬阻断：透传上游原始错误体给客户端（不重包成通用 502），不冷却账号。
 	// 当前请求恒透传（需求1）；标记供 handler 事后写风控/邮件。400 cyber 不可 failover
@@ -341,7 +339,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		if contentType == "" {
 			contentType = "application/json"
 		}
-		c.Data(resp.StatusCode, contentType, exposeCodexCPAIdentityResponsePayload(body, cpaIdentityState))
+		c.Data(resp.StatusCode, contentType, body)
 		if cyberMsg == "" {
 			return nil, fmt.Errorf("openai cyber_policy: %d", resp.StatusCode)
 		}

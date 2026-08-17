@@ -1,18 +1,13 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func newTestOAuthAccount(id int64, extra map[string]any) *Account {
@@ -63,7 +58,6 @@ func TestGetCodexFingerprintMode(t *testing.T) {
 		{"device", newTestOAuthAccount(1, map[string]any{codexFingerprintModeExtraKey: "device"}), codexFingerprintDevice},
 		{"session", newTestOAuthAccount(1, map[string]any{codexFingerprintModeExtraKey: "session"}), codexFingerprintSession},
 		{"full", newTestOAuthAccount(1, map[string]any{codexFingerprintModeExtraKey: "full"}), codexFingerprintFull},
-		{"cpa", newTestOAuthAccount(1, map[string]any{codexFingerprintModeExtraKey: "cpa"}), codexFingerprintCPA},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -129,113 +123,6 @@ func TestResolveCodexFingerprintIDsFromRequest_DefaultIsSession(t *testing.T) {
 	assert.Equal(t, codexFingerprintSession, ids.mode)
 	assert.NotEmpty(t, ids.sessionID)
 	assert.NotEmpty(t, ids.turnID)
-}
-
-func TestResolveCodexFingerprintIDsFromRequest_CPA(t *testing.T) {
-	account := newTestOAuthAccount(1, map[string]any{codexFingerprintModeExtraKey: "cpa"})
-	assert.Nil(t, resolveCodexFingerprintIDsFromRequest(account, nil), "CPA 不使用原有收敛 IDs")
-}
-
-// --- CPA 模式 ---
-
-func TestCodexCPAIdentity_RequestAndResponseMapping(t *testing.T) {
-	account := newTestOAuthAccount(42, map[string]any{codexFingerprintModeExtraKey: "cpa"})
-	originalBody := []byte(`{
-		"prompt_cache_key":"client-cache",
-		"client_metadata":{
-			"x-codex-installation-id":"client-installation",
-			"x-codex-window-id":"client-window:0",
-			"x-codex-turn-metadata":"{\"prompt_cache_key\":\"client-cache\",\"turn_id\":\"client-turn\",\"window_id\":\"client-window:0\",\"sandbox\":\"seccomp\"}"
-		}
-	}`)
-
-	state := prepareCodexCPAIdentityState(account, originalBody, nil)
-	require.NotNil(t, state)
-	assert.Equal(t, codexCPAConfuseUUID("42", "prompt-cache", "client-cache"), state.promptCacheKey)
-
-	var body map[string]any
-	require.NoError(t, json.Unmarshal(originalBody, &body))
-	require.True(t, applyCodexCPAIdentityBody(body, state))
-	assert.Equal(t, state.promptCacheKey, body["prompt_cache_key"])
-	metadata, ok := body["client_metadata"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, codexCPAConfuseUUID("42", "installation", "client-installation"), metadata["x-codex-installation-id"])
-	assert.Equal(t, state.promptCacheKey+":0", metadata["x-codex-window-id"])
-
-	var bodyTurnMetadata map[string]any
-	require.NoError(t, json.Unmarshal([]byte(metadata["x-codex-turn-metadata"].(string)), &bodyTurnMetadata))
-	assert.Equal(t, state.promptCacheKey, bodyTurnMetadata["prompt_cache_key"])
-	assert.Equal(t, state.promptCacheKey+":0", bodyTurnMetadata["window_id"])
-	confusedTurnID, ok := bodyTurnMetadata["turn_id"].(string)
-	require.True(t, ok)
-	assert.Equal(t, codexCPAConfuseUUID("42", "turn", "client-turn"), confusedTurnID)
-
-	headers := http.Header{}
-	headers.Set("session_id", "sub2api-isolated-session")
-	headers.Set("conversation_id", "sub2api-isolated-conversation")
-	headers.Set("x-codex-turn-metadata", `{"prompt_cache_key":"client-cache","turn_id":"client-turn","window_id":"client-window:0"}`)
-	applyCodexCPAIdentityHeaders(headers, state)
-	assert.Equal(t, state.promptCacheKey, headers.Get("session_id"))
-	assert.Equal(t, state.promptCacheKey, headers.Get("conversation_id"))
-	assert.Equal(t, state.promptCacheKey, headers.Get("x-client-request-id"))
-	assert.Equal(t, state.promptCacheKey, headers.Get("thread-id"))
-	assert.Equal(t, state.promptCacheKey+":0", headers.Get("x-codex-window-id"))
-
-	var headerTurnMetadata map[string]any
-	require.NoError(t, json.Unmarshal([]byte(headers.Get("x-codex-turn-metadata")), &headerTurnMetadata))
-	assert.Equal(t, confusedTurnID, headerTurnMetadata["turn_id"])
-
-	clientPayload := []byte(`{"prompt_cache_key":"client-cache","turn_id":"client-turn"}`)
-	internalPayload := normalizeCodexCPAIdentityResponsePayload(clientPayload, state)
-	assert.Contains(t, string(internalPayload), state.promptCacheKey)
-	assert.Contains(t, string(internalPayload), confusedTurnID)
-	assert.JSONEq(t, string(clientPayload), string(exposeCodexCPAIdentityResponsePayload(internalPayload, state)))
-}
-
-func TestCodexCPAIdentity_LeavesSessionHeadersWhenOriginalPromptCacheKeyMissing(t *testing.T) {
-	account := newTestOAuthAccount(42, map[string]any{codexFingerprintModeExtraKey: "cpa"})
-	state := prepareCodexCPAIdentityState(account, []byte(`{"client_metadata":{"x-codex-turn-metadata":"{\"turn_id\":\"client-turn\"}"}}`), nil)
-	require.NotNil(t, state)
-	require.Empty(t, state.promptCacheKey)
-
-	headers := http.Header{}
-	headers.Set("session_id", "existing-session")
-	headers.Set("conversation_id", "existing-conversation")
-	headers.Set("x-codex-turn-metadata", `{"turn_id":"client-turn"}`)
-	applyCodexCPAIdentityHeaders(headers, state)
-
-	assert.Equal(t, "existing-session", headers.Get("session_id"))
-	assert.Equal(t, "existing-conversation", headers.Get("conversation_id"))
-	assert.Empty(t, headers.Get("x-client-request-id"))
-	assert.Empty(t, headers.Get("thread-id"))
-	assert.Empty(t, headers.Get("x-codex-window-id"))
-	assert.Contains(t, headers.Get("x-codex-turn-metadata"), codexCPAConfuseUUID("42", "turn", "client-turn"))
-}
-
-func TestCodexCPAIdentity_BuildUpstreamRequestUsesCPAHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"gpt-5.4","prompt_cache_key":"client-cache","client_metadata":{"x-codex-installation-id":"client-installation"}}`)
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	account := newTestOAuthAccount(42, map[string]any{codexFingerprintModeExtraKey: "cpa"})
-	account.Credentials = map[string]any{"chatgpt_account_id": "chatgpt-account"}
-	setCodexCPAIdentityState(c, prepareCodexCPAIdentityState(account, body, c.Request.Header))
-
-	req, err := (&OpenAIGatewayService{}).buildUpstreamRequest(context.Background(), c, account, body, "oauth-token", true, "client-cache", true)
-	require.NoError(t, err)
-	defer req.Body.Close()
-
-	confusedCacheKey := codexCPAConfuseUUID("42", "prompt-cache", "client-cache")
-	assert.Equal(t, confusedCacheKey, req.Header.Get("session_id"))
-	assert.Empty(t, req.Header.Get("conversation_id"), "CPA HTTP 路径不应自动补 Conversation_id")
-	assert.Equal(t, confusedCacheKey, req.Header.Get("x-client-request-id"))
-	assert.Equal(t, confusedCacheKey, req.Header.Get("thread-id"))
-
-	upstreamBody, readErr := io.ReadAll(req.Body)
-	require.NoError(t, readErr)
-	assert.Equal(t, confusedCacheKey, gjson.GetBytes(upstreamBody, "prompt_cache_key").String())
-	assert.Equal(t, codexCPAConfuseUUID("42", "installation", "client-installation"), gjson.GetBytes(upstreamBody, "client_metadata.x-codex-installation-id").String())
 }
 
 // --- applyCodexFingerprintHeaders: off 模式 ---

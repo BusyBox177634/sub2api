@@ -4,15 +4,6 @@
 
 ## 新增功能概览
 
-### Codex CPA 模式
-
-- OpenAI OAuth 账号的“Codex 指纹收敛”新增 `CPA 模式（CLIProxyAPI 对齐）` 选项；创建账号、编辑账号和批量编辑均可设置。
-- 选择后会写入账号 `extra.codex_fingerprint_mode = "cpa"`。默认仍是原有的 `session` 收敛模式，未选择 CPA 的账号行为不变。
-- CPA 模式不把所有客户端收敛到同一套账号级设备/会话 ID，而是按账号对客户端已携带的 `prompt_cache_key`、`x-codex-installation-id`、turn metadata 中的 `turn_id` 等标识做稳定伪名化；派生规则与 CLIProxyAPI 的 `identity-confuse` 一致。
-- 上游请求中的 `Session-Id/session_id`、已有的 `Conversation_id`、`X-Client-Request-Id`、`Thread-Id`、`X-Codex-Window-Id` 和 `X-Codex-Turn-Metadata` 会使用对应的 CPA 值；仅当客户端原始请求带有 `prompt_cache_key` 时才覆盖这些会话相关标识，保持 CLIProxyAPI 的条件行为。
-- 响应在网关内部保留 CPA 伪 ID 以保证后续解析一致，写回客户端前恢复原始 `prompt_cache_key` 与 turn ID。该处理覆盖 Responses HTTP/SSE、compact、Chat Completions/Messages 兼容转换、Responses WebSocket v2、入站 WebSocket relay/HTTP bridge，以及相关图像 Responses 流程。
-- Sub2API 没有 CLIProxyAPI 的独立 auth ID，CPA 派生中的 `authID` 使用当前 OAuth 账号的数字 `Account.ID`。同一账号内映射稳定；删除并重新创建账号会得到新的映射。
-
 ### 网页端聊天
 
 - 新增网页端 `/chat` 聊天页面，可在后台侧边栏进入。

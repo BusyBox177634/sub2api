@@ -340,11 +340,6 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	body []byte,
 	token string,
 ) (*http.Request, error) {
-	promptCacheKey := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
-	body, _, cpaIdentityState, cpaErr := prepareCodexCPAUpstreamPayload(c, account, body, promptCacheKey)
-	if cpaErr != nil {
-		return nil, cpaErr
-	}
 	targetURL := openaiPlatformAPIURL
 	switch account.Type {
 	case AccountTypeOAuth:
@@ -401,6 +396,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		// experiment. Passthrough may receive it from an older client, so remove
 		// only that token while preserving any independent beta negotiation.
 		stripOpenAILegacyResponsesBeta(req.Header)
+		promptCacheKey := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
 		req.Host = "chatgpt.com"
 		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
 			return nil, fmt.Errorf("resolve chatgpt account headers: %w", err)
@@ -409,7 +405,6 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		// 先保存客户端原始值，再做 compact 补充，避免后续统一隔离时读到已处理的值。
 		clientSessionID := strings.TrimSpace(req.Header.Get("session_id"))
 		clientConversationID := strings.TrimSpace(req.Header.Get("conversation_id"))
-		hadClientConversationID := clientConversationID != ""
 		if isOpenAIResponsesCompactPath(c) {
 			req.Header.Set("accept", "application/json")
 			if req.Header.Get("version") == "" {
@@ -434,7 +429,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		if clientSessionID != "" {
 			req.Header.Set("session_id", isolateOpenAISessionID(apiKeyID, clientSessionID))
 		}
-		if clientConversationID != "" && (cpaIdentityState == nil || hadClientConversationID) {
+		if clientConversationID != "" {
 			req.Header.Set("conversation_id", isolateOpenAISessionID(apiKeyID, clientConversationID))
 		}
 	} else if isOpenAIResponsesCompactPath(c) {
@@ -456,7 +451,6 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	// （User-Agent / originator / version 同源自洽），客户端自报身份不会到达上游。
 	if account.Type == AccountTypeOAuth {
 		enforceCodexIdentityHeadersWithUA(req.Header, s.codexIdentityOverrideUA(account))
-		applyCodexCPAIdentityHeaders(req.Header, cpaIdentityState)
 	}
 
 	if req.Header.Get("content-type") == "" {
@@ -1198,7 +1192,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	mappedModel string,
 ) (*openaiStreamingResultPassthrough, error) {
 	observer := upstreamResponseModelObserverFromContext(c)
-	identityState := codexCPAIdentityStateFromContext(c)
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
 	}
@@ -1281,9 +1274,8 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		lineStartsClientOutput := false
 		forceFlushFailedEvent := false
 		if data, ok := extractOpenAISSEDataLine(line); ok {
-			dataBytes := normalizeCodexCPAIdentityResponsePayload([]byte(data), identityState)
-			trimmedData := strings.TrimSpace(string(dataBytes))
-			line = "data: " + string(dataBytes)
+			dataBytes := []byte(data)
+			trimmedData := strings.TrimSpace(data)
 			rawEventType := strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
 			observer.ObserveOpenAI(dataBytes, rawEventType)
 			if needModelReplace && strings.Contains(data, mappedModel) {
@@ -1391,7 +1383,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				firstTokenMs = &ms
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)
-			line = "data: " + string(exposeCodexCPAIdentityResponsePayload(dataBytes, identityState))
 		}
 
 		if !clientDisconnected {
@@ -1485,8 +1476,6 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if err != nil {
 		return nil, err
 	}
-	identityState := codexCPAIdentityStateFromContext(c)
-	body = normalizeCodexCPAIdentityResponsePayload(body, identityState)
 	observer := upstreamResponseModelObserverFromContext(c)
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
@@ -1531,7 +1520,6 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if err != nil {
 		return nil, fmt.Errorf("restore OpenAI passthrough namespace response: %w", err)
 	}
-	body = exposeCodexCPAIdentityResponsePayload(body, identityState)
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
 	}
@@ -1549,8 +1537,6 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 // preserving passthrough payloads, except compact-only model remapping may
 // rewrite model fields back to the original requested model.
 func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c *gin.Context, body []byte, originalModel string, mappedModel string) (*openaiNonStreamingResultPassthrough, error) {
-	identityState := codexCPAIdentityStateFromContext(c)
-	body = normalizeCodexCPAIdentityResponsePayload(body, identityState)
 	bodyText := string(body)
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 
@@ -1605,7 +1591,6 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			contentType = "text/event-stream"
 		}
 	}
-	body = exposeCodexCPAIdentityResponsePayload(body, identityState)
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
 	}
