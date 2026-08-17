@@ -55,4 +55,3 @@ func loadChatWebSearchSupportSet() map[string]struct{} {
 
 	return chatWebSearchSupportSet
 }
-
