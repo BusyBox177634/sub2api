@@ -28,6 +28,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -103,6 +104,10 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 	if account == nil {
 		return service.ErrAccountNilInput
 	}
+	// A newly created/imported account must never inherit another account's
+	// internal Codex identity. Existing database backup restores keep their
+	// seed because they do not pass through this create boundary.
+	service.DiscardCodexFingerprintSeedForNewAccount(account)
 
 	builder := client.Account.Create().
 		SetName(account.Name).
@@ -608,7 +613,8 @@ func lockAndMergeAccountProbeExtra(
 			extra -> 'upstream_billing_probe',
 			extra -> 'ollama_cloud_usage_session',
 			extra -> 'ollama_cloud_usage_auto_refresh',
-			extra -> 'ollama_cloud_usage_snapshot'
+			extra -> 'ollama_cloud_usage_snapshot',
+			COALESCE(extra ->> 'codex_fingerprint_seed', '')
 		FROM accounts
 		WHERE id = $1 AND deleted_at IS NULL
 		FOR NO KEY UPDATE
@@ -634,6 +640,7 @@ func lockAndMergeAccountProbeExtra(
 		currentOllamaSession         []byte
 		currentOllamaAutoRefresh     []byte
 		currentOllamaSnapshot        []byte
+		currentCodexFingerprintSeed  string
 	)
 	if err := rows.Scan(
 		&identityUnchanged,
@@ -645,6 +652,7 @@ func lockAndMergeAccountProbeExtra(
 		&currentOllamaSession,
 		&currentOllamaAutoRefresh,
 		&currentOllamaSnapshot,
+		&currentCodexFingerprintSeed,
 	); err != nil {
 		return nil, err
 	}
@@ -662,6 +670,12 @@ func lockAndMergeAccountProbeExtra(
 		service.OllamaCloudUsageSnapshotExtraKey,
 	} {
 		delete(extra, key)
+	}
+	// The seed is repository-owned. Preserve the value currently locked in the
+	// row and ignore any value supplied by a full account edit/import.
+	delete(extra, service.CodexFingerprintSeedExtraKey)
+	if parsed, parseErr := uuid.Parse(strings.TrimSpace(currentCodexFingerprintSeed)); parseErr == nil {
+		extra[service.CodexFingerprintSeedExtraKey] = parsed.String()
 	}
 	probeAccount := service.IsUpstreamBillingProbeIdentity(account.Platform, account.Type)
 	probeEnabled := false
@@ -2520,6 +2534,9 @@ func (r *accountRepository) AutoPauseExpiredAccounts(ctx context.Context, now ti
 }
 
 func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
+	// Internal Codex identity is created only by EnsureCodexFingerprintSeed;
+	// ordinary admin/runtime patches must not overwrite or delete it.
+	delete(updates, service.CodexFingerprintSeedExtraKey)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -2590,6 +2607,62 @@ func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates m
 		}
 	}
 	return nil
+}
+
+// EnsureCodexFingerprintSeed atomically returns the account's existing valid
+// seed or installs the supplied candidate when it is absent/invalid. The
+// conditional UPDATE is important: concurrent gateway instances may handle an
+// account's first converged request at the same time, and all must observe one
+// durable value rather than whichever process happened to write last.
+func (r *accountRepository) EnsureCodexFingerprintSeed(ctx context.Context, accountID int64, candidate string) (string, error) {
+	candidate = strings.TrimSpace(candidate)
+	parsedCandidate, err := uuid.Parse(candidate)
+	if err != nil {
+		return "", err
+	}
+	candidate = parsedCandidate.String()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+		UPDATE accounts
+		SET extra = CASE
+			WHEN COALESCE(extra ->> 'codex_fingerprint_seed', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+				THEN COALESCE(extra, '{}'::jsonb)
+			ELSE jsonb_set(
+					COALESCE(extra, '{}'::jsonb),
+					'{codex_fingerprint_seed}'::text[],
+					to_jsonb($1::text),
+					true
+				)
+		END,
+			updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+		RETURNING extra ->> 'codex_fingerprint_seed'
+	`, candidate, accountID)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
+		return "", service.ErrAccountNotFound
+	}
+	var seed string
+	if err := rows.Scan(&seed); err != nil {
+		return "", err
+	}
+	parsedSeed, err := uuid.Parse(strings.TrimSpace(seed))
+	if err != nil {
+		return "", err
+	}
+	if dbent.TxFromContext(ctx) == nil {
+		r.syncSchedulerAccountSnapshot(ctx, accountID)
+	}
+	return parsedSeed.String(), nil
 }
 
 // UpdateUpstreamBillingProbeSnapshot stores a probe result only while the
@@ -2793,6 +2866,9 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 	if len(ids) == 0 {
 		return 0, nil
 	}
+	// Keep the internal seed out of generic JSONB merge updates as well. Admin
+	// paths already strip it, but repository callers must get the same guarantee.
+	delete(updates.Extra, service.CodexFingerprintSeedExtraKey)
 
 	setClauses := make([]string, 0, 8)
 	args := make([]any, 0, 8)

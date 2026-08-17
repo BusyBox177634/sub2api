@@ -458,6 +458,10 @@ type OpenAIGatewayService struct {
 	openaiOAuth429WindowStartUnixNano   atomic.Int64
 	openaiOAuth429WindowCount           atomic.Int64
 	openaiWSRetryMetrics                openAIWSRetryMetrics
+	// codexFingerprintSeedCache avoids repeated DB reads while a scheduler
+	// snapshot loaded before first use is waiting to refresh. Values are only
+	// copied into request-local Account values, never written into shared maps.
+	codexFingerprintSeedCache           sync.Map // key: int64(accountID), value: string
 	responseHeaderFilter                *responseheaders.CompiledHeaderFilter
 	codexSnapshotThrottle               *accountWriteThrottle
 	codexModelsManifestCache            codexModelsManifestCache

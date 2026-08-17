@@ -336,6 +336,7 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 		delete(extra, OllamaCloudUsageSessionExtraKey)
 		delete(extra, OllamaCloudUsageAutoRefreshExtraKey)
 		delete(extra, OllamaCloudUsageSnapshotExtraKey)
+		preserveCodexFingerprintSeedOnAccountUpdate(account.Extra, extra)
 		account.Extra = extra
 	}
 

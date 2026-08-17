@@ -2062,18 +2062,30 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	} else {
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	}
-	applyOpenAICodexProbeHeaders(req.Header)
-	probeSessionID := compactProbeSessionID(account.ID)
-	req.Header.Set("Session_ID", probeSessionID)
-	req.Header.Set("Conversation_ID", probeSessionID)
-
+	fingerprintAccount := account
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
 		// 指纹收敛：探测与真实转发走同一个 /responses 端点，身份也必须同构，
 		// 否则探测流量会以「缺 x-codex-installation-id + 非收敛 session」的
 		// 形态暴露在上游眼里。账号关闭收敛（off）时返回 nil，探测保持原样。
-		if fpIDs := resolveCodexFingerprintIDsFromRequest(account, req.Header); fpIDs != nil {
+		if mode := account.GetCodexFingerprintMode(); codexFingerprintModeNeedsSeed(account, mode) {
+			// Account tests are real upstream requests too. Materialize the same
+			// durable seed used by gateway traffic; on failure leave the probe
+			// un-converged rather than deriving from the local account ID.
+			if seed, seedErr := ensureCodexFingerprintSeedForAccount(ctx, s.accountRepo, account); seedErr != nil {
+				log.Printf("[AccountTest] Codex fingerprint seed unavailable account=%d err=%v", account.ID, seedErr)
+			} else {
+				fingerprintAccount = accountWithCodexFingerprintSeed(account, seed)
+			}
+		}
+	}
+	applyOpenAICodexProbeHeaders(req.Header)
+	probeSessionID := compactProbeSessionID(fingerprintAccount)
+	req.Header.Set("Session_ID", probeSessionID)
+	req.Header.Set("Conversation_ID", probeSessionID)
+	if isOAuth {
+		if fpIDs := resolveCodexFingerprintIDsFromRequest(fingerprintAccount, req.Header); fpIDs != nil {
 			applyCodexFingerprintHeaders(req.Header, fpIDs)
 		}
 	}

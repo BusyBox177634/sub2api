@@ -733,6 +733,8 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
+			codexFingerprintModeExtraKey:      "session",
+			codexFingerprintSeedExtraKey:      "77777777-7777-4777-8777-777777777777",
 		},
 	}
 
@@ -751,10 +753,14 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	require.Equal(t, "native-wsv2", gjson.Get(requestJSON, "input.0.namespace").String(), "OAuth WSv2 应保留原生 namespace")
 	require.Equal(t, openAIWSBetaV2Value, captureDialer.lastHeaders.Get("OpenAI-Beta"))
 	require.Equal(t, "remote_compaction_v2", captureDialer.lastHeaders.Get("x-codex-beta-features"))
-	// OAuth 账号的 session_id/conversation_id 应被 isolateOpenAISessionID 隔离，
-	// 测试中未设置 api_key 到 context，apiKeyID=0。
-	require.Equal(t, isolateOpenAISessionID(0, "sess-oauth-1"), captureDialer.lastHeaders.Get("session_id"))
-	require.Equal(t, isolateOpenAISessionID(0, "conv-oauth-1"), captureDialer.lastHeaders.Get("conversation_id"))
+	ids := resolveCodexFingerprintIDsForClient(account, "sess-oauth-1", 0, codexFingerprintSession)
+	require.NotNil(t, ids)
+	require.Equal(t, ids.installationID, captureDialer.lastHeaders.Get("x-codex-installation-id"))
+	require.Equal(t, ids.sessionID, captureDialer.lastHeaders.Get("session_id"))
+	require.Equal(t, ids.sessionID, captureDialer.lastHeaders.Get("conversation_id"))
+	requestJSON = requestToJSONString(captureConn.lastWrite)
+	require.Equal(t, ids.sessionID, gjson.Get(requestJSON, "prompt_cache_key").String())
+	require.Equal(t, ids.sessionID, gjson.Get(requestJSON, "client_metadata.session_id").String())
 }
 
 func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testing.T) {

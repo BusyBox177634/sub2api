@@ -156,6 +156,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		payloadBytes       int
 	}
 	ingressSessionOriginalModel := ""
+	var connectionFingerprintIDs *codexFingerprintIDs
+	fingerprintResolved := false
 
 	applyPayloadMutation := func(current []byte, path string, value any) ([]byte, error) {
 		next, err := sjson.SetBytes(current, path, value)
@@ -395,6 +397,36 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 		normalized = policyApplied
+
+		// Resolve the durable account seed once per WS connection. Every later
+		// response.create gets a fresh turn_id while retaining the stable
+		// account/client session and thread scope. Keep rawForHash untouched so
+		// local sticky routing remains keyed by the client's original payload.
+		var fingerprintIDs *codexFingerprintIDs
+		if !fingerprintResolved {
+			connectionFingerprintIDs = s.resolveCodexFingerprintIDsForRequest(ctx, c, account, trimmed)
+			fingerprintResolved = true
+			fingerprintIDs = connectionFingerprintIDs
+		} else {
+			fingerprintIDs = nextCodexFingerprintIDsForTurn(connectionFingerprintIDs)
+		}
+		stageCodexFingerprintIDs(c, fingerprintIDs)
+		if fingerprintIDs != nil {
+			fingerprinted, changed, fingerprintErr := applyCodexFingerprintRequestBodyRaw(normalized, fingerprintIDs)
+			if fingerprintErr != nil {
+				return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(
+					coderws.StatusPolicyViolation,
+					"invalid websocket request payload",
+					fingerprintErr,
+				)
+			}
+			if changed {
+				normalized = fingerprinted
+			}
+			if fingerprintIDs.mode != codexFingerprintDevice && fingerprintIDs.sessionID != "" {
+				promptCacheKey = fingerprintIDs.sessionID
+			}
+		}
 		ingressSessionOriginalModel = originalModel
 
 		return openAIWSClientPayload{

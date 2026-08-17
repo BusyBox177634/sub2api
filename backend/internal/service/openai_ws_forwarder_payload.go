@@ -135,6 +135,10 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 		}
 		headers.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI))
 	}
+	// HTTP and both WS ingress paths stage one shared fingerprint set on the
+	// request context. Apply it last so account/session isolation above cannot
+	// reintroduce a different session or conversation value.
+	applyStagedCodexFingerprintHeaders(c, account, headers)
 
 	betaValue := openAIWSBetaV2Value
 	if decision.Transport == OpenAIUpstreamTransportResponsesWebsocket {

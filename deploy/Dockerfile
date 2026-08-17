@@ -7,7 +7,7 @@
 # =============================================================================
 
 ARG NODE_IMAGE=node:24-alpine
-ARG GOLANG_IMAGE=golang:1.26.5-alpine
+ARG GOLANG_IMAGE=golang:1.26.6-alpine
 ARG ALPINE_IMAGE=alpine:3.20
 ARG ALPINE_REPO=https://mirrors.tuna.tsinghua.edu.cn/alpine
 ARG COREPACK_NPM_REGISTRY=https://registry.npmmirror.com

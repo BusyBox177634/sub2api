@@ -752,6 +752,20 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, blocked.Message, blocked)
 	}
 	firstClientMessage = updatedFirst
+	// Resolve/stage one durable fingerprint scope for this relay connection
+	// before constructing the upstream handshake. Later response.create frames
+	// derive only a new turn_id from this base scope.
+	connectionFingerprintIDs := s.resolveCodexFingerprintIDsForRequest(ctx, c, account, firstClientMessage)
+	stageCodexFingerprintIDs(c, connectionFingerprintIDs)
+	if connectionFingerprintIDs != nil {
+		fingerprinted, changed, fingerprintErr := applyCodexFingerprintRequestBodyRaw(firstClientMessage, connectionFingerprintIDs)
+		if fingerprintErr != nil {
+			return fmt.Errorf("apply codex fingerprint to first ws frame: %w", fingerprintErr)
+		}
+		if changed {
+			firstClientMessage = fingerprinted
+		}
+	}
 
 	// 在 policy filter 之后再提取 service_tier / reasoning_effort 用于
 	// usage 上报：filter
@@ -1034,6 +1048,17 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			//     覆盖（Store(nil)），因为 OpenAI 上游对该帧实际不传
 			//     service_tier 时按 default 处理，billing 应如实反映。
 			if policyErr == nil && blocked == nil && isResponseCreate {
+				turnFingerprintIDs := nextCodexFingerprintIDsForTurn(connectionFingerprintIDs)
+				stageCodexFingerprintIDs(c, turnFingerprintIDs)
+				if turnFingerprintIDs != nil {
+					fingerprinted, changed, fingerprintErr := applyCodexFingerprintRequestBodyRaw(out, turnFingerprintIDs)
+					if fingerprintErr != nil {
+						return payload, nil, fmt.Errorf("apply codex fingerprint to ws frame: %w", fingerprintErr)
+					}
+					if changed {
+						out = fingerprinted
+					}
+				}
 				usageMeta.updateFromResponseCreate(out, model, requestModelForThisFrame)
 				acceptedTurn = true
 			}

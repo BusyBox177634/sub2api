@@ -284,7 +284,10 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactProbeIdentityMatc
 			"chatgpt_account_id": "chatgpt-acc",
 		},
 		// 收敛是显式 opt-in（#5610），这里显式开启以验证探测身份与真实流量同构。
-		Extra: map[string]any{"codex_fingerprint_mode": "session"},
+		Extra: map[string]any{
+			"codex_fingerprint_mode":     "session",
+			codexFingerprintSeedExtraKey: "33333333-3333-4333-8333-333333333333",
+		},
 	}
 	repo := &snapshotUpdateAccountRepo{
 		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
@@ -303,8 +306,8 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactProbeIdentityMatc
 
 	require.NoError(t, svc.TestAccountConnection(c, account.ID, "gpt-5.4", "", AccountTestModeCompact))
 
-	// 显式 session 收敛模式：出站身份 = 账号级收敛值
-	converged := resolveConvergedSessionID(&account)
+	// Session mode preserves a client-scoped pseudonymous cache identity.
+	converged := resolveConvergedSessionIDForClient(&account, compactProbeSessionID(&account), 0)
 	require.Equal(t, converged, upstream.lastReq.Header.Get("session-id"))
 	require.Equal(t, converged, upstream.lastReq.Header.Get("session_id"))
 	require.Equal(t, resolveConvergedInstallationID(&account), upstream.lastReq.Header.Get("x-codex-installation-id"),
@@ -314,12 +317,19 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactProbeIdentityMatc
 	<-updateCalls
 }
 
-func TestCompactProbeSessionID_IsUUIDShaped(t *testing.T) {
-	for _, id := range []int64{0, 1, 987654} {
-		got := compactProbeSessionID(id)
+func TestCompactProbeSessionID_IsUUIDShapedAndAvoidsLocalIDDerivation(t *testing.T) {
+	seededA := &Account{ID: 7, Extra: map[string]any{
+		codexFingerprintSeedExtraKey: "55555555-5555-4555-8555-555555555555",
+	}}
+	seededB := &Account{ID: 7, Extra: map[string]any{
+		codexFingerprintSeedExtraKey: "66666666-6666-4666-8666-666666666666",
+	}}
+	for _, account := range []*Account{nil, seededA, seededB} {
+		got := compactProbeSessionID(account)
 		_, err := uuid.Parse(got)
 		require.NoError(t, err, "探测会话标识必须是 UUID 形态: %s", got)
 	}
-	require.Equal(t, compactProbeSessionID(7), compactProbeSessionID(7), "同账号应稳定复用同一会话")
-	require.NotEqual(t, compactProbeSessionID(7), compactProbeSessionID(8))
+	require.Equal(t, compactProbeSessionID(seededA), compactProbeSessionID(seededA), "有持久 seed 的账号应稳定复用探测会话")
+	require.NotEqual(t, compactProbeSessionID(seededA), compactProbeSessionID(seededB), "相同本地 ID 但不同 seed 不得碰撞")
+	require.NotEqual(t, compactProbeSessionID(nil), compactProbeSessionID(nil), "无 seed 时不得使用全局固定或 account.ID 派生值")
 }

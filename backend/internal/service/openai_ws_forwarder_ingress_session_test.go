@@ -134,15 +134,17 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 		ID:          114,
 		Name:        "openai-ingress-session-lease",
 		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Type:        AccountTypeOAuth,
 		Status:      StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
-			"api_key": "sk-test",
+			"access_token": "oauth-token",
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
+			codexFingerprintModeExtraKey:      "session",
+			codexFingerprintSeedExtraKey:      "88888888-8888-4888-8888-888888888888",
 		},
 	}
 
@@ -212,7 +214,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 		return message
 	}
 
-	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false}`)
+	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false,"prompt_cache_key":"ingress-client-pck"}`)
 	firstTurnImageEvent := readMessage()
 	require.Equal(t, "response.output_item.done", gjson.GetBytes(firstTurnImageEvent, "type").String())
 	require.Equal(t, "completed", gjson.GetBytes(firstTurnImageEvent, "item.status").String())
@@ -241,6 +243,18 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	require.Equal(t, int64(1), metrics.AcquireTotal, "同一 ingress 会话多 turn 应只获取一次上游 lease")
 	require.Equal(t, 1, captureDialer.DialCount(), "同一 ingress 会话应保持同一上游连接")
 	require.Len(t, captureConn.writes, 2, "应向同一上游连接发送两轮 response.create")
+	ids := resolveCodexFingerprintIDsForClient(account, "ingress-client-pck", 0, codexFingerprintSession)
+	require.NotNil(t, ids)
+	require.Equal(t, ids.installationID, captureDialer.lastHeaders.Get("x-codex-installation-id"))
+	require.Equal(t, ids.sessionID, captureDialer.lastHeaders.Get("session_id"))
+	require.Equal(t, ids.sessionID, captureDialer.lastHeaders.Get("conversation_id"))
+	firstUpstream := requestToJSONString(captureConn.writes[0])
+	secondUpstream := requestToJSONString(captureConn.writes[1])
+	require.Equal(t, ids.sessionID, gjson.Get(firstUpstream, "prompt_cache_key").String())
+	require.Equal(t, ids.sessionID, gjson.Get(secondUpstream, "prompt_cache_key").String())
+	require.Equal(t, ids.sessionID, gjson.Get(firstUpstream, "client_metadata.session_id").String())
+	require.Equal(t, ids.sessionID, gjson.Get(secondUpstream, "client_metadata.session_id").String())
+	require.NotEqual(t, gjson.Get(firstUpstream, "client_metadata.turn_id").String(), gjson.Get(secondUpstream, "client_metadata.turn_id").String())
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRetryClose(t *testing.T) {
@@ -1144,6 +1158,8 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 		},
 		Extra: map[string]any{
 			"openai_oauth_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
+			codexFingerprintModeExtraKey:                "session",
+			codexFingerprintSeedExtraKey:                "99999999-9999-4999-8999-999999999999",
 		},
 	}
 
@@ -1224,11 +1240,17 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 		t.Fatal("等待 passthrough websocket 结束超时")
 	}
 
-	require.Equal(t, isolateOpenAISessionID(0, "pcache_passthrough"), captureDialer.lastHeaders.Get("session_id"))
+	ids := resolveCodexFingerprintIDsForClient(account, "pcache_passthrough", 0, codexFingerprintSession)
+	require.NotNil(t, ids)
+	require.Equal(t, ids.installationID, captureDialer.lastHeaders.Get("x-codex-installation-id"))
+	require.Equal(t, ids.sessionID, captureDialer.lastHeaders.Get("session_id"))
+	require.Equal(t, ids.sessionID, captureDialer.lastHeaders.Get("conversation_id"))
 	require.Equal(t, "turn-state-1", captureDialer.lastHeaders.Get(openAIWSTurnStateHeader))
 	require.Equal(t, "turn-meta-1", captureDialer.lastHeaders.Get(openAIWSTurnMetadataHeader))
 	require.Len(t, upstreamConn.writes, 1)
 	forwarded := requestToJSONString(upstreamConn.writes[0])
+	require.Equal(t, ids.sessionID, gjson.Get(forwarded, "prompt_cache_key").String())
+	require.Equal(t, ids.sessionID, gjson.Get(forwarded, "client_metadata.session_id").String())
 	require.False(t, gjson.Get(forwarded, `tools.#(type=="namespace")`).Exists())
 	require.Equal(t, "collaboration", gjson.Get(forwarded, `input.#(type=="additional_tools").tools.0.name`).String())
 	require.Equal(t, "namespace", gjson.Get(forwarded, "tool_choice.type").String())

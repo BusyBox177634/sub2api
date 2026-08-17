@@ -72,6 +72,7 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 			service.OllamaCloudUsageSessionExtraKey:     "ciphertext-secret",
 			service.OllamaCloudUsageAutoRefreshExtraKey: true,
 			service.OllamaCloudUsageSnapshotExtraKey:    snapshot,
+			service.CodexFingerprintSeedExtraKey:        "seed-secret",
 			"ordinary":                                  "kept",
 		},
 	}
@@ -80,6 +81,7 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 	require.NotContains(t, got.Extra, service.OllamaCloudUsageSessionExtraKey)
 	require.NotContains(t, got.Extra, service.OllamaCloudUsageAutoRefreshExtraKey)
 	require.NotContains(t, got.Extra, service.OllamaCloudUsageSnapshotExtraKey)
+	require.NotContains(t, got.Extra, service.CodexFingerprintSeedExtraKey)
 	require.Equal(t, "kept", got.Extra["ordinary"])
 	require.NotNil(t, got.OllamaCloudUsage)
 	require.True(t, got.OllamaCloudUsage.Configured)
@@ -89,8 +91,10 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 	raw, err := json.Marshal(got)
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), "ciphertext-secret")
+	require.NotContains(t, string(raw), "seed-secret")
 	require.NotContains(t, string(raw), "secret-key")
 	require.Contains(t, src.Extra, service.OllamaCloudUsageSessionExtraKey)
+	require.Contains(t, src.Extra, service.CodexFingerprintSeedExtraKey)
 }
 
 func TestAccountFromServiceShallow_NilCredentialsOmitsStatus(t *testing.T) {

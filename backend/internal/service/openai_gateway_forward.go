@@ -416,14 +416,11 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		// 指纹收敛：一次性解析收敛 ID，请求体和出站头共享同一份 IDs（保证 turn_id 等随机字段一致）。
 		// fingerprintIDs 在此处解析，后续 buildUpstreamRequest 中使用同一份。
+		var fpIDs *codexFingerprintIDs
 		if !isCompactRequest {
-			var clientHeaders http.Header
-			if c != nil && c.Request != nil {
-				clientHeaders = c.Request.Header
-			}
-			fpIDs := resolveCodexFingerprintIDsFromRequest(account, clientHeaders)
+			fpIDs = s.resolveCodexFingerprintIDsForRequest(ctx, c, account, body)
 			if fpIDs != nil {
-				if applyCodexFingerprintClientMetadata(decoded, fpIDs) {
+				if applyCodexFingerprintRequestBody(decoded, fpIDs) {
 					markDecodedModified()
 				}
 			}
@@ -431,12 +428,21 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			// 无条件覆写（含 nil）：failover 从收敛账号切到 off 账号时，上一
 			// 账号的 IDs 不得残留（stageCodexFingerprintIDs 注释）。
 			stageCodexFingerprintIDs(c, fpIDs)
+		} else {
+			// Compact requests do not use this convergence shape. Clear any IDs
+			// staged by an earlier failover attempt before request construction.
+			stageCodexFingerprintIDs(c, nil)
 		}
 		if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
 		}
 		if codexResult.PromptCacheKey != "" {
 			promptCacheKey = codexResult.PromptCacheKey
+		}
+		// session/full use the same converged value in the root body and in the
+		// outbound session headers, so prompt-cache routing remains coherent.
+		if fpIDs != nil && fpIDs.mode != codexFingerprintDevice && fpIDs.sessionID != "" {
+			promptCacheKey = fpIDs.sessionID
 		}
 	}
 

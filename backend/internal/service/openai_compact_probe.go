@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -157,10 +159,12 @@ func mergeExtraUpdates(base map[string]any, more map[string]any) map[string]any 
 // session-id / thread-id 恒为 UUID（codex-protocol ThreadId 是 UUIDv7），
 // 探测既然与真实流量走同一个 /responses 端点，标识形态就必须同构——
 // 否则上游能凭 "probe_compact_5" 这类字面量一眼区分出探测流量。
-// 账号级稳定派生：重复探测复用同一会话，而不是每次新开一个。
-func compactProbeSessionID(accountID int64) string {
-	if accountID <= 0 {
-		return deriveStableUUIDv4("sub2api:codex-compact-probe:v1:anonymous")
+// If fingerprint convergence has a durable account seed, repeated probes reuse
+// its derived UUID. Otherwise use a fresh random UUID: an admin probe must not
+// leak or collide on a local database auto-increment ID across deployments.
+func compactProbeSessionID(account *Account) string {
+	if seed := codexFingerprintSeed(account); seed != "" {
+		return deriveCodexFingerprintUUID(seed, "compact-probe-session", "")
 	}
-	return deriveStableUUIDv4("sub2api:codex-compact-probe:v1:" + strconv.FormatInt(accountID, 10))
+	return uuid.NewString()
 }
