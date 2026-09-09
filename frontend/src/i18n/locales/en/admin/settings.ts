@@ -1090,10 +1090,10 @@ export default {
         }
       },
       overloadCooldown: {
-        title: '529 Overload Cooldown',
-        description: 'Configure account scheduling pause strategy when upstream returns 529 (overloaded)',
+        title: '502/503/529 Overload Cooldown',
+        description: 'Configure account scheduling pause strategy when upstream returns 502, 503, or 529 (overloaded)',
         enabled: 'Enable Overload Cooldown',
-        enabledHint: 'Pause account scheduling on 529 errors, auto-recover after cooldown',
+        enabledHint: 'Pause account scheduling on 502, 503, or 529 errors, auto-recover after cooldown',
         cooldownMinutes: 'Cooldown Duration (minutes)',
         cooldownMinutesHint: 'Duration to pause account scheduling (1-120 minutes)',
         saved: 'Overload cooldown settings saved',

@@ -145,7 +145,7 @@ export default {
         modelCreditOveragesUntil: '{model} using AI Credits until {time}',
         creditsExhausted: 'Credits Exhausted',
         creditsExhaustedUntil: 'AI Credits exhausted, expected recovery at {time}',
-        overloadedUntil: 'Overloaded until {time}',
+        overloadedUntil: 'Upstream overload (502/503/529), resumes at {time}',
         viewTempUnschedDetails: 'View temp unschedulable details',
         tempUnschedulableUntil: 'Resumes {time}'
       },
@@ -727,7 +727,7 @@ export default {
       customErrorCodes429Warning:
         '429 already has built-in rate limit handling. Adding it to custom error codes will disable the account instead of temporary rate limiting. Are you sure?',
       customErrorCodes529Warning:
-        '529 already has built-in overload handling. Adding it to custom error codes will disable the account instead of temporary overload marking. Are you sure?',
+        '502/503/529 already have built-in overload handling. Adding one to custom error codes will disable the account instead of temporary overload marking. Are you sure?',
       selectedErrorCodes: 'Selected',
       noneSelectedUsesDefault: 'None selected (uses default policy)',
       enterErrorCode: 'Enter error code (100-599)',

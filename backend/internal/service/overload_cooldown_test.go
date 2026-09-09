@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -35,15 +36,29 @@ func (r *errSettingRepo) Get(_ context.Context, _ string) (*Setting, error) {
 
 type overloadAccountRepoStub struct {
 	mockAccountRepoForGemini
-	overloadCalls   int
-	lastOverloadID  int64
-	lastOverloadEnd time.Time
+	overloadCalls      int
+	lastOverloadID     int64
+	lastOverloadEnd    time.Time
+	tempUnschedCalls   int
+	lastTempUnschedEnd time.Time
+	errorCalls         int
 }
 
 func (r *overloadAccountRepoStub) SetOverloaded(_ context.Context, id int64, until time.Time) error {
 	r.overloadCalls++
 	r.lastOverloadID = id
 	r.lastOverloadEnd = until
+	return nil
+}
+
+func (r *overloadAccountRepoStub) SetError(_ context.Context, _ int64, _ string) error {
+	r.errorCalls++
+	return nil
+}
+
+func (r *overloadAccountRepoStub) SetTempUnschedulable(_ context.Context, _ int64, until time.Time, _ string) error {
+	r.tempUnschedCalls++
+	r.lastTempUnschedEnd = until
 	return nil
 }
 
@@ -267,6 +282,105 @@ func TestHandle529_DBReadError_FallsBackToConfig(t *testing.T) {
 
 	require.Equal(t, 1, accountRepo.overloadCalls)
 	require.WithinDuration(t, before.Add(7*time.Minute), accountRepo.lastOverloadEnd, 2*time.Second)
+}
+
+func TestHandleUpstreamError_OverloadStatusesPauseAccount(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "502_bad_gateway", statusCode: http.StatusBadGateway},
+		{name: "503_service_unavailable", statusCode: http.StatusServiceUnavailable},
+		{name: "529_legacy_overload", statusCode: 529},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accountRepo := &overloadAccountRepoStub{}
+			svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+			account := &Account{ID: 101, Platform: PlatformAnthropic, Type: AccountTypeOAuth}
+
+			before := time.Now()
+			shouldDisable := svc.HandleUpstreamError(
+				context.Background(), account, tt.statusCode, http.Header{}, []byte(`{"error":{"message":"temporary upstream overload"}}`),
+			)
+
+			require.False(t, shouldDisable, "overload cooldown should keep the account active")
+			require.Equal(t, 1, accountRepo.overloadCalls)
+			require.Equal(t, int64(101), accountRepo.lastOverloadID)
+			require.WithinDuration(t, before.Add(10*time.Minute), accountRepo.lastOverloadEnd, 2*time.Second)
+		})
+	}
+}
+
+func TestHandleSyntheticUpstreamError_502And503DoNotPauseAccount(t *testing.T) {
+	for _, statusCode := range []int{http.StatusBadGateway, http.StatusServiceUnavailable} {
+		accountRepo := &overloadAccountRepoStub{}
+		svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+		account := &Account{ID: 102, Platform: PlatformAnthropic, Type: AccountTypeOAuth}
+
+		shouldDisable := svc.HandleSyntheticUpstreamError(
+			context.Background(), account, statusCode, http.Header{}, []byte(`{"error":{"message":"local parser failure"}}`),
+		)
+
+		require.False(t, shouldDisable)
+		require.Zero(t, accountRepo.overloadCalls, "synthetic HTTP-like errors must not trigger account overload cooldown")
+	}
+}
+
+func TestHandleUpstreamError_Custom502UsesCustomErrorPolicy(t *testing.T) {
+	accountRepo := &overloadAccountRepoStub{}
+	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	account := &Account{
+		ID:       103,
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"custom_error_codes_enabled": true,
+			"custom_error_codes":         []any{float64(http.StatusBadGateway)},
+		},
+	}
+
+	shouldDisable := svc.HandleUpstreamError(
+		context.Background(), account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"custom policy"}}`),
+	)
+
+	require.True(t, shouldDisable)
+	require.Zero(t, accountRepo.overloadCalls, "selected custom error codes must bypass overload cooldown")
+	require.Equal(t, 1, accountRepo.errorCalls)
+}
+
+func TestHandleGrokAccountUpstreamError_OnlyRealHTTPOverloadPausesAccount(t *testing.T) {
+	t.Run("real HTTP response", func(t *testing.T) {
+		accountRepo := &overloadAccountRepoStub{}
+		rateLimitSvc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+		gatewaySvc := &OpenAIGatewayService{accountRepo: accountRepo, rateLimitService: rateLimitSvc}
+		account := &Account{ID: 104, Platform: PlatformGrok, Type: AccountTypeOAuth}
+
+		before := time.Now()
+		gatewaySvc.handleGrokAccountUpstreamError(
+			context.Background(), account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"bad gateway"}}`),
+		)
+
+		require.Equal(t, 1, accountRepo.overloadCalls)
+		require.WithinDuration(t, before.Add(10*time.Minute), accountRepo.lastOverloadEnd, 2*time.Second)
+	})
+
+	t.Run("WS payload status mapping", func(t *testing.T) {
+		accountRepo := &overloadAccountRepoStub{}
+		rateLimitSvc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+		gatewaySvc := &OpenAIGatewayService{accountRepo: accountRepo, rateLimitService: rateLimitSvc}
+		account := &Account{ID: 105, Platform: PlatformGrok, Type: AccountTypeOAuth}
+
+		before := time.Now()
+		gatewaySvc.handleGrokAccountUpstreamError(
+			withSyntheticUpstreamError(context.Background()), account, http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"bad gateway"}}`),
+		)
+
+		require.Zero(t, accountRepo.overloadCalls)
+		require.Equal(t, 1, accountRepo.tempUnschedCalls)
+		require.WithinDuration(t, before.Add(2*time.Minute), accountRepo.lastTempUnschedEnd, 2*time.Second)
+	})
 }
 
 // ===========================================================================

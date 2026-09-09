@@ -471,10 +471,10 @@ const (
 	SettingKeyOllamaCloudUsageSettings = "ollama_cloud_usage_settings"
 
 	// =========================
-	// Overload Cooldown (529)
+	// Overload Cooldown (502/503/529)
 	// =========================
 
-	// SettingKeyOverloadCooldownSettings stores JSON config for 529 overload cooldown handling.
+	// SettingKeyOverloadCooldownSettings stores JSON config for 502/503/529 overload cooldown handling.
 	SettingKeyOverloadCooldownSettings = "overload_cooldown_settings"
 
 	// SettingKeyRateLimit429CooldownSettings stores JSON config for 429 fallback cooldown handling.

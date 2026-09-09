@@ -1629,12 +1629,12 @@ const addPresetMapping = (from: string, to: string) => {
 const toggleErrorCode = (code: number) => {
   const index = selectedErrorCodes.value.indexOf(code)
   if (index === -1) {
-    // Adding code - check for 429/529 warning
+    // Adding code - check for built-in rate-limit/overload handling warning
     if (code === 429) {
       if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
         return
       }
-    } else if (code === 529) {
+    } else if ([502, 503, 529].includes(code)) {
       if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
         return
       }
@@ -1655,12 +1655,12 @@ const addCustomErrorCode = () => {
     appStore.showInfo(t('admin.accounts.errorCodeExists'))
     return
   }
-  // Check for 429/529 warning
+  // Check for built-in rate-limit/overload handling warning
   if (code === 429) {
     if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
       return
     }
-  } else if (code === 529) {
+  } else if ([502, 503, 529].includes(code)) {
     if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
       return
     }

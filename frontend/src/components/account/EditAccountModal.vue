@@ -3830,7 +3830,7 @@ const toggleErrorCode = (code: number) => {
       if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
         return
       }
-    } else if (code === 529) {
+    } else if ([502, 503, 529].includes(code)) {
       if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
         return
       }
@@ -3857,7 +3857,7 @@ const addCustomErrorCode = () => {
     if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
       return
     }
-  } else if (code === 529) {
+  } else if ([502, 503, 529].includes(code)) {
     if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
       return
     }

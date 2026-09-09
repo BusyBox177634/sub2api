@@ -1878,7 +1878,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 			return err
 		}
 		responseBody := []byte(fmt.Sprintf(`{"error":{"type":"upstream_error","code":%q,"message":%q}}`, code, message))
-		shouldDisable := s.handleOpenAIAccountUpstreamError(ctx, account, statusCode, headers, responseBody, requestedModel)
+		// The 502 here is synthesized from a stream read failure after a
+		// successful HTTP response, so it must not trigger HTTP overload
+		// cooldown handling.
+		shouldDisable := s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, statusCode, headers, responseBody, requestedModel)
 		return &UpstreamFailoverError{StatusCode: statusCode, ResponseBody: responseBody, ResponseHeaders: headers,
 			RetryableOnSameAccount: !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode)}
 	}
@@ -1920,7 +1923,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 	}
 
 	responseBody := openAIImagesUpstreamErrorResponseBody(upstreamErr)
-	shouldDisable := s.handleOpenAIAccountUpstreamError(ctx, account, upstreamErr.StatusCode, headers, responseBody, requestedModel)
+	// OpenAIImagesUpstreamError is parsed from a successful HTTP/SSE response;
+	// its 502/503 status is an application-level synthesis, not an HTTP overload
+	// response received from the upstream server.
+	shouldDisable := s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, upstreamErr.StatusCode, headers, responseBody, requestedModel)
 	return &UpstreamFailoverError{
 		StatusCode:             upstreamErr.StatusCode,
 		ResponseBody:           responseBody,

@@ -1264,7 +1264,7 @@ export async function deleteAdminApiKey(): Promise<{ message: string }> {
 // ==================== Overload Cooldown Settings ====================
 
 /**
- * Overload cooldown settings interface (529 handling)
+ * Overload cooldown settings interface (502/503/529 handling)
  */
 export interface OverloadCooldownSettings {
   enabled: boolean;

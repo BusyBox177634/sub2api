@@ -272,7 +272,10 @@ func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx contex
 	}
 	status := openAIWSPayloadTransientStatus(payload)
 	if status != 0 {
-		s.handleOpenAIAccountUpstreamError(ctx, account, status, headers, payload, canonicalModel)
+		// WS terminal payloads carry an application-level status, not an HTTP
+		// response status. Keep synthesized 502/503 values out of HTTP overload
+		// cooldown handling while retaining model-transient bookkeeping.
+		s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, status, headers, payload, canonicalModel)
 	}
 	return terminalEvent
 }
@@ -284,7 +287,7 @@ func (s *OpenAIGatewayService) handleOpenAIWSErrorEventTransientFailure(ctx cont
 	}
 	status := openAIWSPayloadTransientStatus(payload)
 	if status != 0 {
-		s.handleOpenAIAccountUpstreamError(ctx, account, status, headers, payload, canonicalModel)
+		s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, status, headers, payload, canonicalModel)
 	}
 }
 

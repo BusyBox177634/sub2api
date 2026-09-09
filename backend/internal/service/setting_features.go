@@ -664,7 +664,7 @@ func (s *SettingService) GetFallbackModel(ctx context.Context, platform string) 
 	return value
 }
 
-// GetOverloadCooldownSettings 获取529过载冷却配置
+// GetOverloadCooldownSettings 获取 502/503/529 过载冷却配置
 func (s *SettingService) GetOverloadCooldownSettings(ctx context.Context) (*OverloadCooldownSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyOverloadCooldownSettings)
 	if err != nil {
@@ -693,7 +693,7 @@ func (s *SettingService) GetOverloadCooldownSettings(ctx context.Context) (*Over
 	return &settings, nil
 }
 
-// SetOverloadCooldownSettings 设置529过载冷却配置
+// SetOverloadCooldownSettings 设置 502/503/529 过载冷却配置
 func (s *SettingService) SetOverloadCooldownSettings(ctx context.Context, settings *OverloadCooldownSettings) error {
 	if settings == nil {
 		return fmt.Errorf("settings cannot be nil")

@@ -161,7 +161,9 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 				}
 				break
 			}
-			if resp.StatusCode == http.StatusTooManyRequests {
+			if resp.StatusCode == http.StatusTooManyRequests ||
+				resp.StatusCode == http.StatusBadGateway ||
+				resp.StatusCode == http.StatusServiceUnavailable {
 				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			if attempt < geminiMaxRetries {

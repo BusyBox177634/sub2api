@@ -348,7 +348,7 @@ export default {
         modelCreditOveragesUntil: '{model} 正在使用 AI Credits，至 {time}',
         creditsExhausted: '积分已用尽',
         creditsExhaustedUntil: 'AI Credits 已用尽，预计 {time} 恢复',
-        overloadedUntil: '负载过重，重置时间：{time}',
+        overloadedUntil: '上游过载（502/503/529），预计 {time} 自动恢复',
         viewTempUnschedDetails: '查看临时不可调度详情',
         tempUnschedulableUntil: '预计 {time} 恢复'
       },
@@ -792,7 +792,7 @@ export default {
       customErrorCodes429Warning:
         '429 已有内置的限流处理机制。添加到自定义错误码后，将直接停止调度而非临时限流。确定要添加吗？',
       customErrorCodes529Warning:
-        '529 已有内置的过载处理机制。添加到自定义错误码后，将直接停止调度而非临时标记过载。确定要添加吗？',
+        '502/503/529 已有内置的过载处理机制。添加到自定义错误码后，将直接停止调度而非临时标记过载。确定要添加吗？',
       selectedErrorCodes: '已选择',
       noneSelectedUsesDefault: '未选择（使用默认策略）',
       enterErrorCode: '输入错误码 (100-599)',

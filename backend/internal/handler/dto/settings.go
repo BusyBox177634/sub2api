@@ -442,7 +442,7 @@ type LoginAgreementDocument struct {
 	ContentMD string `json:"content_md"`
 }
 
-// OverloadCooldownSettings 529过载冷却配置 DTO
+// OverloadCooldownSettings 502/503/529 过载冷却配置 DTO
 type OverloadCooldownSettings struct {
 	Enabled         bool `json:"enabled"`
 	CooldownMinutes int  `json:"cooldown_minutes"`

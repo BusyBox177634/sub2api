@@ -409,7 +409,10 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 					shouldFailover = false
 				} else {
 					shouldFailover = s.shouldFailoverGrokUpstreamError(statusCode, upstreamMessage)
-					s.handleGrokAccountUpstreamError(ctx, account, statusCode, resp.Header, upstreamMessage)
+					// WS error events are application-level payloads rather than
+					// HTTP responses. Keep synthesized 502/503 values out of the
+					// account-wide overload cooldown path.
+					s.handleGrokAccountUpstreamError(withSyntheticUpstreamError(ctx), account, statusCode, resp.Header, upstreamMessage)
 				}
 			} else if shouldFailover {
 				accountStatus := statusCode
@@ -417,7 +420,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 					accountStatus = transientStatus
 				}
 				canonicalModel := canonicalOpenAIAccountSchedulingModel(account, originalModel)
-				s.handleOpenAIAccountUpstreamError(ctx, account, accountStatus, resp.Header, upstreamMessage, canonicalModel)
+				s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, accountStatus, resp.Header, upstreamMessage, canonicalModel)
 			}
 			if turn == 1 && !wroteDownstream && shouldFailover {
 				return nil, newOpenAIUpstreamFailoverError(statusCode, resp.Header, upstreamMessage, errMessage, false)

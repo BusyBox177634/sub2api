@@ -90,8 +90,10 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 	if resp.StatusCode >= 400 {
 		respBody := s.readUpstreamErrorBody(resp)
 
-		// 429 错误时标记账号限流
-		if resp.StatusCode == http.StatusTooManyRequests {
+		// 429 标记账号限流；真实 502/503 进入共享过载冷却策略。
+		if resp.StatusCode == http.StatusTooManyRequests ||
+			resp.StatusCode == http.StatusBadGateway ||
+			resp.StatusCode == http.StatusServiceUnavailable {
 			s.handleUpstreamError(ctx, prefix, account, resp.StatusCode, resp.Header, respBody, originalModel, 0, "", false)
 		}
 

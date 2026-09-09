@@ -1201,11 +1201,8 @@ func (s *AntigravityGatewayService) handleUpstreamError(
 		return result
 	}
 
-	// 503 仅处理模型限流（MODEL_CAPACITY_EXHAUSTED），非模型限流不做额外处理
-	// 避免将普通的 503 错误误判为账号问题
-	if statusCode == 503 {
-		return nil
-	}
+	// MODEL_CAPACITY_EXHAUSTED 已在上方作为模型级事件处理；其他 503 继续
+	// 交给共享错误策略，以便真实上游过载响应暂停账号调度。
 
 	// 429：尝试解析模型级限流，解析失败时兜底为账号级限流
 	if statusCode == 429 {

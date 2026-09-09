@@ -203,7 +203,7 @@
 
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
-          <!-- Overload Cooldown (529) Settings -->
+          <!-- Overload Cooldown (502/503/529) Settings -->
           <div class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
@@ -8930,7 +8930,7 @@ const ollamaCloudUsageForm = reactive({
   debounce_minutes: 1,
 });
 
-// Overload Cooldown (529) 状态
+// Overload Cooldown (502/503/529) 状态
 const overloadCooldownLoading = ref(true);
 const overloadCooldownSaving = ref(false);
 const overloadCooldownForm = reactive({
@@ -11758,7 +11758,7 @@ async function saveOllamaCloudUsageSettings() {
   }
 }
 
-// Overload Cooldown 方法
+// Overload Cooldown 方法（502/503/529）
 async function loadOverloadCooldownSettings() {
   overloadCooldownLoading.value = true;
   try {

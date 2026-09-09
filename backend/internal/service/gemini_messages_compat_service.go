@@ -889,8 +889,8 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 				}
 				break
 			}
-			if resp.StatusCode == 429 {
-				// Mark as rate-limited early so concurrent requests avoid this account.
+			if resp.StatusCode == 429 || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable {
+				// Mark transient account state early so concurrent requests avoid this account.
 				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			if attempt < geminiMaxRetries {
@@ -1367,7 +1367,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				}
 				break
 			}
-			if resp.StatusCode == 429 {
+			if resp.StatusCode == 429 || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable {
 				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			if attempt < geminiMaxRetries {
@@ -2954,7 +2954,7 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	if !account.ShouldHandleErrorCode(statusCode) {
 		return
 	}
-	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
+	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 502 || statusCode == 503 || statusCode == 529) {
 		s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
 		return
 	}

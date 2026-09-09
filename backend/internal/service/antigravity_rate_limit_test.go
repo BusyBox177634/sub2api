@@ -87,10 +87,16 @@ type stubAntigravityAccountRepo struct {
 	rateCalls           []rateLimitCall
 	modelRateLimitCalls []modelRateLimitCall
 	extraUpdateCalls    []extraUpdateCall
+	overloadCalls       []time.Time
 }
 
 func (s *stubAntigravityAccountRepo) SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error {
 	s.rateCalls = append(s.rateCalls, rateLimitCall{accountID: id, resetAt: resetAt})
+	return nil
+}
+
+func (s *stubAntigravityAccountRepo) SetOverloaded(_ context.Context, _ int64, until time.Time) error {
+	s.overloadCalls = append(s.overloadCalls, until)
 	return nil
 }
 
@@ -229,7 +235,7 @@ func TestHandleUpstreamError_429_NonModelRateLimit_UsesMappedModelKey(t *testing
 // MODEL_CAPACITY_EXHAUSTED 时应等待重试，不切换账号
 func TestHandleUpstreamError_503_ModelCapacityExhausted(t *testing.T) {
 	repo := &stubAntigravityAccountRepo{}
-	svc := &AntigravityGatewayService{accountRepo: repo}
+	svc := &AntigravityGatewayService{accountRepo: repo, rateLimitService: &RateLimitService{accountRepo: repo}}
 	account := &Account{ID: 3, Name: "acc-3", Platform: PlatformAntigravity}
 
 	// 503 + MODEL_CAPACITY_EXHAUSTED → 等待重试，不切换账号
@@ -252,6 +258,34 @@ func TestHandleUpstreamError_503_ModelCapacityExhausted(t *testing.T) {
 	require.False(t, result.ShouldRetry, "MODEL_CAPACITY_EXHAUSTED should not trigger retry from handleModelRateLimit path")
 	require.Nil(t, result.SwitchError, "MODEL_CAPACITY_EXHAUSTED should not trigger account switch")
 	require.Empty(t, repo.modelRateLimitCalls, "MODEL_CAPACITY_EXHAUSTED should not set model rate limit")
+	require.Empty(t, repo.overloadCalls, "MODEL_CAPACITY_EXHAUSTED should not trigger account overload cooldown")
+}
+
+func TestHandleUpstreamError_502And503GenericUseOverloadCooldown(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		body       []byte
+	}{
+		{name: "502", statusCode: http.StatusBadGateway, body: []byte(`{"error":{"message":"bad gateway"}}`)},
+		{name: "503", statusCode: http.StatusServiceUnavailable, body: []byte(`{"error":{"status":"UNAVAILABLE","message":"temporarily unavailable"}}`)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &stubAntigravityAccountRepo{}
+			svc := &AntigravityGatewayService{accountRepo: repo, rateLimitService: &RateLimitService{accountRepo: repo}}
+			account := &Account{ID: 6, Name: "acc-6", Platform: PlatformAntigravity}
+
+			before := time.Now()
+			result := svc.handleUpstreamError(context.Background(), "[test]", account, tt.statusCode, http.Header{}, tt.body, "gemini-3-pro-high", 0, "", false)
+
+			require.Nil(t, result)
+			require.Empty(t, repo.modelRateLimitCalls)
+			require.Len(t, repo.overloadCalls, 1)
+			require.WithinDuration(t, before.Add(10*time.Minute), repo.overloadCalls[0], 2*time.Second)
+		})
+	}
 }
 
 // TestHandleUpstreamError_503_NonModelRateLimit 测试 503 非模型限流场景（不处理）

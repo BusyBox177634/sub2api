@@ -1425,9 +1425,10 @@ func TestOpenAIGatewayService_OpenAIPassthrough_RetryableStatusesTriggerFailover
 			statusCode:     http.StatusBadGateway,
 			body:           `{"error":{"message":"bad gateway","type":"server_error"}}`,
 			expectFailover: false,
-			assertRepo: func(t *testing.T, repo *openAIPassthroughFailoverRepo, _ time.Time) {
+			assertRepo: func(t *testing.T, repo *openAIPassthroughFailoverRepo, start time.Time) {
 				require.Empty(t, repo.rateLimitCalls)
-				require.Empty(t, repo.overloadCalls)
+				require.Len(t, repo.overloadCalls, 1)
+				require.WithinDuration(t, start.Add(10*time.Minute), repo.overloadCalls[0], 5*time.Second)
 			},
 		},
 		{
@@ -1436,9 +1437,10 @@ func TestOpenAIGatewayService_OpenAIPassthrough_RetryableStatusesTriggerFailover
 			statusCode:     http.StatusServiceUnavailable,
 			body:           `{"error":{"message":"service unavailable","type":"server_error"}}`,
 			expectFailover: false,
-			assertRepo: func(t *testing.T, repo *openAIPassthroughFailoverRepo, _ time.Time) {
+			assertRepo: func(t *testing.T, repo *openAIPassthroughFailoverRepo, start time.Time) {
 				require.Empty(t, repo.rateLimitCalls)
-				require.Empty(t, repo.overloadCalls)
+				require.Len(t, repo.overloadCalls, 1)
+				require.WithinDuration(t, start.Add(10*time.Minute), repo.overloadCalls[0], 5*time.Second)
 			},
 		},
 		{

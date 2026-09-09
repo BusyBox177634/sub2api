@@ -1680,6 +1680,15 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 	// status switch so non-429 free-usage bodies still cool the account.
 	// Pool-mode still skips durable mutation unless an explicit temp rule matches.
 	decision := classifyGrokUpstreamFailure(statusCode, responseBody, grokRequestedModelFromCtx(ctx))
+	// Generic real HTTP Grok 502/503 responses use the shared
+	// administrator-configured overload cooldown. Synthetic parser or WebSocket
+	// failures keep their existing per-class cooldown behavior below.
+	if (statusCode == http.StatusBadGateway || statusCode == http.StatusServiceUnavailable) &&
+		(decision.Class == GrokFailureNone || decision.Class == GrokFailureServer) &&
+		s.rateLimitService != nil && !isSyntheticUpstreamError(ctx) {
+		s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, responseBody)
+		return
+	}
 	if decision.ShouldCooldown && decision.Class != GrokFailureNone && decision.Class != GrokFailureRateLimit {
 		if account.IsPoolMode() {
 			// Allow configured temp rules (403) below; skip default body cools.

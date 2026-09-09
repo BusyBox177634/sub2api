@@ -264,7 +264,9 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 	return ErrorPolicyNone
 }
 
-// HandleUpstreamError 处理上游错误响应，标记账号状态
+// HandleUpstreamError 处理上游错误响应，标记账号状态。
+// 真实上游 HTTP 502/503 会进入可配置的过载冷却；本地合成错误应通过
+// HandleSyntheticUpstreamError 调用，以保留原有的日志/模型级处理。
 // 返回是否应该停止该账号的调度
 func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) (shouldDisable bool) {
 	ctx = withTempUnschedulableModel(ctx, requestedModel)
@@ -466,6 +468,27 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 	case 429:
 		s.handle429(ctx, account, headers, responseBody)
 		shouldDisable = false
+	case http.StatusBadGateway, http.StatusServiceUnavailable:
+		// 502/503 are transient overload signals for normal accounts. Keep the
+		// existing custom-error-code contract: when custom codes are enabled, a
+		// selected status is handled as a permanent account error instead of the
+		// built-in overload cooldown.
+		if customErrorCodesEnabled {
+			msg := "Custom error code triggered"
+			if upstreamMsg != "" {
+				msg = upstreamMsg
+			}
+			s.handleCustomErrorCode(ctx, account, statusCode, msg)
+			shouldDisable = true
+		} else if isSyntheticUpstreamError(ctx) {
+			// Local transport/parser failures may be represented as 502/503 for
+			// failover. They must retain their existing logging-only behavior.
+			slog.Warn("account_upstream_error", "account_id", account.ID, "status_code", statusCode)
+			shouldDisable = false
+		} else {
+			s.handleOverload(ctx, account, statusCode)
+			shouldDisable = false
+		}
 	case 529:
 		s.handle529(ctx, account)
 		shouldDisable = false
@@ -1679,9 +1702,12 @@ func persistOpenAI429PlanType(ctx context.Context, repo AccountRepository, accou
 	slog.Info("openai_429_plan_type_synced", "account_id", account.ID, "previous_plan_type", current, "plan_type", planType)
 }
 
-// handle529 处理529过载错误
-// 根据配置决定是否暂停账号调度及冷却时长
-func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
+// handleOverload 处理上游过载错误（502/503/529）。
+// 根据系统设置决定是否暂停账号调度及冷却时长。
+func (s *RateLimitService) handleOverload(ctx context.Context, account *Account, statusCode int) {
+	if s == nil || account == nil || s.accountRepo == nil {
+		return
+	}
 	var settings *OverloadCooldownSettings
 	if s.settingService != nil {
 		var err error
@@ -1693,7 +1719,10 @@ func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
 	}
 	// 回退到配置文件
 	if settings == nil {
-		cooldown := s.cfg.RateLimit.OverloadCooldownMinutes
+		cooldown := 10
+		if s.cfg != nil {
+			cooldown = s.cfg.RateLimit.OverloadCooldownMinutes
+		}
 		if cooldown <= 0 {
 			cooldown = 10
 		}
@@ -1701,7 +1730,7 @@ func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
 	}
 
 	if !settings.Enabled {
-		slog.Info("account_529_ignored", "account_id", account.ID, "reason", "overload_cooldown_disabled")
+		slog.Info("account_overload_ignored", "account_id", account.ID, "status_code", statusCode, "reason", "overload_cooldown_disabled")
 		return
 	}
 
@@ -1711,13 +1740,18 @@ func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
 	}
 
 	until := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
-	s.notifyAccountSchedulingBlocked(account, until, "529")
+	s.notifyAccountSchedulingBlocked(account, until, strconv.Itoa(statusCode))
 	if err := s.accountRepo.SetOverloaded(ctx, account.ID, until); err != nil {
-		slog.Warn("overload_set_failed", "account_id", account.ID, "error", err)
+		slog.Warn("overload_set_failed", "account_id", account.ID, "status_code", statusCode, "error", err)
 		return
 	}
 
-	slog.Info("account_overloaded", "account_id", account.ID, "until", until)
+	slog.Info("account_overloaded", "account_id", account.ID, "status_code", statusCode, "until", until)
+}
+
+// handle529 保留旧的内部调用入口，统一复用 502/503/529 过载处理。
+func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
+	s.handleOverload(ctx, account, 529)
 }
 
 // UpdateSessionWindow 从成功响应更新5h窗口状态
@@ -2225,6 +2259,35 @@ func firstRequestedModel(requestedModel []string) string {
 		return ""
 	}
 	return strings.TrimSpace(requestedModel[0])
+}
+
+// upstreamErrorSourceContextKey marks an HTTP-like status that was generated
+// by a local transport/parser path rather than received as an upstream HTTP
+// response.  The marker is intentionally request-scoped so normal callers of
+// HandleUpstreamError keep the real-response semantics by default.
+type upstreamErrorSourceContextKey struct{}
+
+func withSyntheticUpstreamError(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, upstreamErrorSourceContextKey{}, true)
+}
+
+func isSyntheticUpstreamError(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	synthetic, _ := ctx.Value(upstreamErrorSourceContextKey{}).(bool)
+	return synthetic
+}
+
+// HandleSyntheticUpstreamError handles a locally synthesized upstream-like
+// error. It preserves legacy state handling while preventing the global 502/
+// 503 overload cooldown from treating parser/transport failures as HTTP
+// overload responses.
+func (s *RateLimitService) HandleSyntheticUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) bool {
+	return s.HandleUpstreamError(withSyntheticUpstreamError(ctx), account, statusCode, headers, responseBody, requestedModel...)
 }
 
 type tempUnschedulableModelContextKey struct{}

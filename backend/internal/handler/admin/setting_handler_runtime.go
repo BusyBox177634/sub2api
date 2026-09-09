@@ -50,7 +50,7 @@ func (h *SettingHandler) DeleteAdminAPIKey(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Admin API key deleted"})
 }
 
-// GetOverloadCooldownSettings 获取529过载冷却配置
+// GetOverloadCooldownSettings 获取 502/503/529 过载冷却配置
 // GET /api/v1/admin/settings/overload-cooldown
 func (h *SettingHandler) GetOverloadCooldownSettings(c *gin.Context) {
 	settings, err := h.settingService.GetOverloadCooldownSettings(c.Request.Context())
@@ -65,13 +65,13 @@ func (h *SettingHandler) GetOverloadCooldownSettings(c *gin.Context) {
 	})
 }
 
-// UpdateOverloadCooldownSettingsRequest 更新529过载冷却配置请求
+// UpdateOverloadCooldownSettingsRequest 更新 502/503/529 过载冷却配置请求
 type UpdateOverloadCooldownSettingsRequest struct {
 	Enabled         bool `json:"enabled"`
 	CooldownMinutes int  `json:"cooldown_minutes"`
 }
 
-// UpdateOverloadCooldownSettings 更新529过载冷却配置
+// UpdateOverloadCooldownSettings 更新 502/503/529 过载冷却配置
 // PUT /api/v1/admin/settings/overload-cooldown
 func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
 	var req UpdateOverloadCooldownSettingsRequest

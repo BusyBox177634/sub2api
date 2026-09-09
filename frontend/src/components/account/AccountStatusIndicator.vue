@@ -6,7 +6,7 @@
       <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
     </div>
 
-    <!-- Overload Display (529) - Two-line layout -->
+    <!-- Overload Display (502/503/529) - Two-line layout -->
     <div v-else-if="isOverloaded" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-danger">{{ t('admin.accounts.status.overloaded') }}</span>
       <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
@@ -137,13 +137,13 @@
       </div>
     </div>
 
-    <!-- Overload Indicator (529) -->
+    <!-- Overload Indicator (502/503/529) -->
     <div v-if="isOverloaded" class="group relative">
       <span
         class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400"
       >
         <Icon name="exclamationTriangle" size="xs" :stroke-width="2" />
-        529
+        502/503/529
       </span>
       <!-- Tooltip -->
       <div

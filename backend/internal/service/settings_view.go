@@ -555,9 +555,9 @@ type BetaPolicySettings struct {
 	Rules []BetaPolicyRule `json:"rules"`
 }
 
-// OverloadCooldownSettings 529过载冷却配置
+// OverloadCooldownSettings 502/503/529 过载冷却配置
 type OverloadCooldownSettings struct {
-	// Enabled 是否在收到529时暂停账号调度
+	// Enabled 是否在收到 502/503/529 时暂停账号调度
 	Enabled bool `json:"enabled"`
 	// CooldownMinutes 冷却时长（分钟）
 	CooldownMinutes int `json:"cooldown_minutes"`
