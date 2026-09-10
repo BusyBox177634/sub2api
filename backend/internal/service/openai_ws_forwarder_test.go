@@ -161,6 +161,19 @@ func TestOpenAIWSErrorEvent_ServerErrorRecordsModelTransient(t *testing.T) {
 	require.True(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-5.5"))
 }
 
+func TestOpenAIWSErrorEvent_ConfirmedOverloadWritesOnce(t *testing.T) {
+	repo := &capacityShedAccountRepoStub{}
+	svc := &OpenAIGatewayService{
+		rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil, nil),
+	}
+	account := &Account{ID: 5204, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	payload := []byte(`{"type":"error","error":{"status_code":503,"code":"server_is_overloaded","message":"Our servers are currently overloaded. Please try again later"}}`)
+
+	svc.handleOpenAIWSErrorEventTransientFailure(context.Background(), account, "gpt-5.5", http.Header{}, payload)
+
+	require.Equal(t, 1, repo.overloadCalls)
+}
+
 func TestOpenAIWSPayloadTransientStatus_Explicit529IsNotModelTransient(t *testing.T) {
 	payload := []byte(`{"type":"response.failed","response":{"error":{"status_code":529,"code":"server_error","message":"overloaded"}}}`)
 

@@ -328,6 +328,43 @@ func TestHandleSyntheticUpstreamError_502And503DoNotPauseAccount(t *testing.T) {
 	}
 }
 
+func TestHandleConfirmedOverloadSignal_OverridesSyntheticGuard(t *testing.T) {
+	accountRepo := &overloadAccountRepoStub{}
+	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	account := &Account{ID: 104, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+	shouldDisable := svc.HandleConfirmedOverloadSignal(
+		withSyntheticUpstreamError(context.Background()),
+		account,
+		http.Header{},
+		[]byte(`{"error":{"message":"Our servers are currently overloaded. Please try again later"}}`),
+	)
+
+	require.False(t, shouldDisable)
+	require.Equal(t, 1, accountRepo.overloadCalls)
+}
+
+func TestHandleConfirmedOverloadSignal_DisabledSettingSkipsAccount(t *testing.T) {
+	accountRepo := &overloadAccountRepoStub{}
+	settingRepo := newMockSettingRepo()
+	data, _ := json.Marshal(OverloadCooldownSettings{Enabled: false, CooldownMinutes: 10})
+	settingRepo.data[SettingKeyOverloadCooldownSettings] = string(data)
+	settingSvc := NewSettingService(settingRepo, &config.Config{})
+	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	svc.SetSettingService(settingSvc)
+	account := &Account{ID: 105, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+	shouldDisable := svc.HandleConfirmedOverloadSignal(
+		context.Background(),
+		account,
+		http.Header{},
+		[]byte(`{"error":{"message":"Selected model is at capacity"}}`),
+	)
+
+	require.False(t, shouldDisable)
+	require.Zero(t, accountRepo.overloadCalls)
+}
+
 func TestHandleUpstreamError_Custom502UsesCustomErrorPolicy(t *testing.T) {
 	accountRepo := &overloadAccountRepoStub{}
 	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)

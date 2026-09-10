@@ -270,12 +270,19 @@ func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx contex
 	if terminalEvent != "response.failed" {
 		return terminalEvent
 	}
+	// A WS response.failed frame is application-level data, not an HTTP
+	// response. Apply the confirmed text signal before the synthetic status
+	// bookkeeping below so non-pool accounts still receive overload cooldown.
+	accountStateCtx := ctx
+	if s.applyOpenAIOverloadCooldown(ctx, account, headers, payload, extractOpenAISSEErrorMessage(payload), canonicalModel) {
+		accountStateCtx = withOpenAIOverloadCooldownApplied(accountStateCtx)
+	}
 	status := openAIWSPayloadTransientStatus(payload)
 	if status != 0 {
 		// WS terminal payloads carry an application-level status, not an HTTP
 		// response status. Keep synthesized 502/503 values out of HTTP overload
 		// cooldown handling while retaining model-transient bookkeeping.
-		s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, status, headers, payload, canonicalModel)
+		s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(accountStateCtx), account, status, headers, payload, canonicalModel)
 	}
 	return terminalEvent
 }
@@ -285,9 +292,13 @@ func (s *OpenAIGatewayService) handleOpenAIWSErrorEventTransientFailure(ctx cont
 	if eventType != "error" {
 		return
 	}
+	accountStateCtx := ctx
+	if s.applyOpenAIOverloadCooldown(ctx, account, headers, payload, extractOpenAISSEErrorMessage(payload), canonicalModel) {
+		accountStateCtx = withOpenAIOverloadCooldownApplied(accountStateCtx)
+	}
 	status := openAIWSPayloadTransientStatus(payload)
 	if status != 0 {
-		s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, status, headers, payload, canonicalModel)
+		s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(accountStateCtx), account, status, headers, payload, canonicalModel)
 	}
 }
 

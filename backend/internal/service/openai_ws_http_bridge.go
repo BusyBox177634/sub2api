@@ -399,6 +399,8 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				errMessage = "upstream error event"
 			}
 			statusCode := openAIWSErrorHTTPStatusFromRaw(errCodeRaw, errTypeRaw)
+			canonicalModel := canonicalOpenAIAccountSchedulingModel(account, originalModel)
+			overloadConfirmed := s.applyOpenAIOverloadCooldownOnce(c, ctx, account, resp.Header, upstreamMessage, errMessage, canonicalModel)
 			shouldFailover := s.shouldFailoverOpenAIUpstreamResponse(statusCode, errMessage, upstreamMessage)
 			if account.Platform == PlatformGrok {
 				// SSE error events do not carry an HTTP status. The local status
@@ -419,8 +421,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				if transientStatus := openAIWSPayloadTransientStatus(upstreamMessage); transientStatus != 0 {
 					accountStatus = transientStatus
 				}
-				canonicalModel := canonicalOpenAIAccountSchedulingModel(account, originalModel)
-				s.handleOpenAIAccountUpstreamError(withSyntheticUpstreamError(ctx), account, accountStatus, resp.Header, upstreamMessage, canonicalModel)
+				accountStateCtx := withSyntheticUpstreamError(ctx)
+				if overloadConfirmed {
+					accountStateCtx = withOpenAIOverloadCooldownApplied(accountStateCtx)
+				}
+				s.handleOpenAIAccountUpstreamError(accountStateCtx, account, accountStatus, resp.Header, upstreamMessage, canonicalModel)
 			}
 			if turn == 1 && !wroteDownstream && shouldFailover {
 				return nil, newOpenAIUpstreamFailoverError(statusCode, resp.Header, upstreamMessage, errMessage, false)

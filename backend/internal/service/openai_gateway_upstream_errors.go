@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"unicode"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -162,6 +164,189 @@ func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string
 		return true
 	}
 	return match(string(upstreamBody))
+}
+
+const (
+	openAIConcurrencyLimitExceededMessage   = "Concurrency limit exceeded for account, please retry later"
+	openAIServersCurrentlyOverloadedMessage = "Our servers are currently overloaded. Please try again later"
+	openAISelectedModelAtCapacityMessage    = "Selected model is at capacity"
+)
+
+var openAIOverloadCooldownMessageFragments = []string{
+	normalizeOpenAIOverloadMessage(openAIConcurrencyLimitExceededMessage),
+	normalizeOpenAIOverloadMessage(openAIServersCurrentlyOverloadedMessage),
+	normalizeOpenAIOverloadMessage(openAISelectedModelAtCapacityMessage),
+}
+
+// normalizeOpenAIOverloadMessage makes matching resilient to capitalization,
+// line wrapping and punctuation differences in provider error payloads.
+func normalizeOpenAIOverloadMessage(text string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(text) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte(' ')
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+func isOpenAIOverloadCooldownMessage(text string) bool {
+	normalized := normalizeOpenAIOverloadMessage(text)
+	if normalized == "" {
+		return false
+	}
+	for _, fragment := range openAIOverloadCooldownMessageFragments {
+		if fragment != "" && strings.Contains(normalized, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+// isOpenAIOverloadCooldownSignal recognizes the explicit provider messages
+// that represent the same account-level overload condition as HTTP 502/503.
+// Structured error fields are preferred so successful model output containing
+// these words cannot accidentally pause an account; plain text is used only
+// for non-JSON upstream error bodies.
+func isOpenAIOverloadCooldownSignal(upstreamMsg string, upstreamBody []byte) bool {
+	if isOpenAIOverloadCooldownMessage(upstreamMsg) {
+		return true
+	}
+
+	matchPayload := func(payload []byte) bool {
+		if len(payload) == 0 {
+			return false
+		}
+		for _, path := range []string{
+			"error.message",
+			"response.error.message",
+			"message",
+			"detail",
+		} {
+			if isOpenAIOverloadCooldownMessage(gjson.GetBytes(payload, path).String()) {
+				return true
+			}
+		}
+		if !gjson.ValidBytes(payload) && !bodyHasSSEFraming(payload) {
+			return isOpenAIOverloadCooldownMessage(string(payload))
+		}
+		return false
+	}
+
+	if matchPayload(upstreamBody) {
+		return true
+	}
+	if len(upstreamBody) == 0 || !bodyHasSSEFraming(upstreamBody) {
+		return false
+	}
+	found := false
+	forEachOpenAISSEDataPayload(string(upstreamBody), func(payload []byte) {
+		if !found && matchPayload(payload) {
+			found = true
+		}
+	})
+	return found
+}
+
+// applyOpenAIOverloadCooldown applies the account-level overload policy for a
+// verified OpenAI application error. The boolean reports whether the payload
+// matched an account-scoped signal, even when the rate-limit service is not
+// wired in a unit-test or lightweight forwarding context.
+func (s *OpenAIGatewayService) applyOpenAIOverloadCooldown(
+	ctx context.Context,
+	account *Account,
+	headers http.Header,
+	responseBody []byte,
+	upstreamMsg string,
+	requestedModel ...string,
+) bool {
+	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() ||
+		!isOpenAIOverloadCooldownSignal(upstreamMsg, responseBody) {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	body := responseBody
+	if len(body) == 0 && strings.TrimSpace(upstreamMsg) != "" {
+		body, _ = marshalOpenAIUpstreamJSON(gin.H{
+			"error": gin.H{"message": strings.TrimSpace(upstreamMsg)},
+		})
+	}
+	if s.rateLimitService != nil {
+		// Error events are often observed after the client has disconnected. Use
+		// the same detached, bounded context as the durable account-state paths so
+		// cancellation of the request cannot drop the cooldown write.
+		stateCtx, cancel := openAIAccountStateContext(ctx)
+		defer cancel()
+		s.rateLimitService.HandleConfirmedOverloadSignal(stateCtx, account, headers, body, requestedModel...)
+	}
+	return true
+}
+
+// openAIOverloadCooldownRequestState prevents an error event followed by its
+// terminal response.failed event from writing the same account cooldown twice.
+// A single upstream request can legitimately carry both events.
+type openAIOverloadCooldownRequestState struct {
+	mu       sync.Mutex
+	accounts map[int64]struct{}
+}
+
+const openAIOverloadCooldownRequestStateKey = "openai_overload_cooldown_request_state"
+
+type openAIOverloadCooldownAppliedContextKey struct{}
+
+func withOpenAIOverloadCooldownApplied(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIOverloadCooldownAppliedContextKey{}, true)
+}
+
+func isOpenAIOverloadCooldownApplied(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	applied, _ := ctx.Value(openAIOverloadCooldownAppliedContextKey{}).(bool)
+	return applied
+}
+
+func (s *OpenAIGatewayService) applyOpenAIOverloadCooldownOnce(
+	c *gin.Context,
+	ctx context.Context,
+	account *Account,
+	headers http.Header,
+	responseBody []byte,
+	upstreamMsg string,
+	requestedModel ...string,
+) bool {
+	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() ||
+		!isOpenAIOverloadCooldownSignal(upstreamMsg, responseBody) {
+		return false
+	}
+
+	if c != nil {
+		var state *openAIOverloadCooldownRequestState
+		if value, exists := c.Get(openAIOverloadCooldownRequestStateKey); exists {
+			state, _ = value.(*openAIOverloadCooldownRequestState)
+		}
+		if state == nil {
+			state = &openAIOverloadCooldownRequestState{accounts: make(map[int64]struct{})}
+			c.Set(openAIOverloadCooldownRequestStateKey, state)
+		}
+		state.mu.Lock()
+		if _, seen := state.accounts[account.ID]; seen {
+			state.mu.Unlock()
+			return true
+		}
+		state.accounts[account.ID] = struct{}{}
+		state.mu.Unlock()
+	}
+
+	return s.applyOpenAIOverloadCooldown(ctx, account, headers, responseBody, upstreamMsg, requestedModel...)
 }
 
 func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {

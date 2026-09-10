@@ -654,6 +654,11 @@ func (s *OpenAIGatewayService) recordOpenAIMessagesStreamUpstreamError(c *gin.Co
 		return
 	}
 	message = sanitizeUpstreamErrorMessage(message)
+	var ctx context.Context
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	s.applyOpenAIOverloadCooldownOnce(c, ctx, account, nil, nil, message)
 	setOpsUpstreamError(c, http.StatusBadGateway, message, "")
 	event := OpsUpstreamErrorEvent{
 		Platform:           PlatformOpenAI,

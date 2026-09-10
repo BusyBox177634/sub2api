@@ -72,6 +72,14 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	if s == nil || account == nil {
 		return false
 	}
+	// HTTP 400/429 bodies and WebSocket application events can carry an
+	// account-specific overload message even though they are not real HTTP
+	// 502/503 responses. Feed only verified OpenAI signals into the existing
+	// overload policy; ordinary synthetic transport/parser errors stay excluded.
+	if account.Platform == PlatformOpenAI && !isOpenAIOverloadCooldownApplied(ctx) &&
+		(statusCode != http.StatusBadGateway && statusCode != http.StatusServiceUnavailable && statusCode != 529 || isSyntheticUpstreamError(ctx)) {
+		s.applyOpenAIOverloadCooldown(ctx, account, headers, responseBody, "", canonicalModel...)
+	}
 	stateCtx = withTempUnschedulableModel(stateCtx, canonicalModel)
 	if s.rateLimitService != nil && len(canonicalModel) > 0 && s.rateLimitService.HandleUpstreamModelNotFound(stateCtx, account, canonicalModel[0], statusCode, responseBody) {
 		return true

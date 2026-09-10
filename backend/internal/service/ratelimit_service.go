@@ -480,7 +480,7 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 			}
 			s.handleCustomErrorCode(ctx, account, statusCode, msg)
 			shouldDisable = true
-		} else if isSyntheticUpstreamError(ctx) {
+		} else if isSyntheticUpstreamError(ctx) && !isConfirmedOverloadUpstreamError(ctx) {
 			// Local transport/parser failures may be represented as 502/503 for
 			// failover. They must retain their existing logging-only behavior.
 			slog.Warn("account_upstream_error", "account_id", account.ID, "status_code", statusCode)
@@ -490,7 +490,9 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 			shouldDisable = false
 		}
 	case 529:
-		s.handle529(ctx, account)
+		if !isOpenAIOverloadCooldownApplied(ctx) {
+			s.handle529(ctx, account)
+		}
 		shouldDisable = false
 	default:
 		// 自定义错误码启用时：在列表中的错误码都应该停止调度
@@ -2267,6 +2269,12 @@ func firstRequestedModel(requestedModel []string) string {
 // HandleUpstreamError keep the real-response semantics by default.
 type upstreamErrorSourceContextKey struct{}
 
+// confirmedOverloadUpstreamErrorContextKey marks an application-level OpenAI
+// error whose payload has already been verified against an explicit provider
+// overload message. It intentionally overrides only the synthetic-error guard;
+// pool-mode and custom-error-code policies remain unchanged.
+type confirmedOverloadUpstreamErrorContextKey struct{}
+
 func withSyntheticUpstreamError(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -2282,12 +2290,42 @@ func isSyntheticUpstreamError(ctx context.Context) bool {
 	return synthetic
 }
 
+func withConfirmedOverloadUpstreamError(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, confirmedOverloadUpstreamErrorContextKey{}, true)
+}
+
+func isConfirmedOverloadUpstreamError(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	confirmed, _ := ctx.Value(confirmedOverloadUpstreamErrorContextKey{}).(bool)
+	return confirmed
+}
+
 // HandleSyntheticUpstreamError handles a locally synthesized upstream-like
 // error. It preserves legacy state handling while preventing the global 502/
 // 503 overload cooldown from treating parser/transport failures as HTTP
 // overload responses.
 func (s *RateLimitService) HandleSyntheticUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) bool {
 	return s.HandleUpstreamError(withSyntheticUpstreamError(ctx), account, statusCode, headers, responseBody, requestedModel...)
+}
+
+// HandleConfirmedOverloadSignal applies the existing 503 overload policy to a
+// provider application-level error (for example an HTTP 200 SSE failure). The
+// caller must verify the payload before invoking this method. Pool-mode accounts
+// still take the normal HandleUpstreamError early return.
+func (s *RateLimitService) HandleConfirmedOverloadSignal(ctx context.Context, account *Account, headers http.Header, responseBody []byte, requestedModel ...string) bool {
+	return s.HandleUpstreamError(
+		withConfirmedOverloadUpstreamError(ctx),
+		account,
+		http.StatusServiceUnavailable,
+		headers,
+		responseBody,
+		requestedModel...,
+	)
 }
 
 type tempUnschedulableModelContextKey struct{}

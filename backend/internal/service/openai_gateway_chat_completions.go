@@ -604,6 +604,13 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		}
 		observer.ObserveOpenAI([]byte(payload), event.Type)
 		refusalDetector.ObservePayload([]byte(payload))
+		if strings.TrimSpace(event.Type) == "error" {
+			var stateCtx context.Context
+			if c != nil && c.Request != nil {
+				stateCtx = c.Request.Context()
+			}
+			s.applyOpenAIOverloadCooldownOnce(c, stateCtx, account, resp.Header, []byte(payload), extractOpenAISSEErrorMessage([]byte(payload)), upstreamModel)
+		}
 
 		isTerminalEvent := isOpenAICompatResponsesTerminalEvent(event.Type)
 		if isTerminalEvent {

@@ -310,6 +310,11 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
 			if trimmedPayload != "[DONE]" {
+				var stateCtx context.Context
+				if c != nil && c.Request != nil {
+					stateCtx = c.Request.Context()
+				}
+				s.applyOpenAIOverloadCooldownOnce(c, stateCtx, account, resp.Header, []byte(payload), "", upstreamModel)
 				observer.ObserveOpenAI([]byte(payload), strings.TrimSpace(gjson.Get(payload, "type").String()))
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {

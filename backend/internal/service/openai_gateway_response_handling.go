@@ -454,6 +454,14 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if responseID == "" {
 				responseID = extractOpenAIResponseIDFromJSONBytes(dataBytes)
 			}
+			if eventType == "error" || (eventType == "" && isOpenAIOverloadCooldownSignal("", dataBytes)) {
+				errorMessage := extractOpenAISSEErrorMessage(dataBytes)
+				var stateCtx context.Context
+				if c != nil && c.Request != nil {
+					stateCtx = c.Request.Context()
+				}
+				s.applyOpenAIOverloadCooldownOnce(c, stateCtx, account, resp.Header, dataBytes, errorMessage, mappedModel)
+			}
 			forceFlushFailedEvent := false
 			if eventType == "response.failed" {
 				failedMessage = extractOpenAISSEErrorMessage(dataBytes)
@@ -1365,6 +1373,11 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			if msg == "" {
 				msg = "Upstream compact response failed"
 			}
+			var stateCtx context.Context
+			if c != nil && c.Request != nil {
+				stateCtx = c.Request.Context()
+			}
+			s.applyOpenAIOverloadCooldownOnce(c, stateCtx, account, resp.Header, terminalPayload, msg, originalModel)
 			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
 		}
 		usage = s.parseSSEUsageFromBody(bodyText)

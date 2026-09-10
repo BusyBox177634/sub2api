@@ -37,6 +37,10 @@ type tempUnschedulableOpenAIAccountRepo struct {
 	modelRateLimitKey       string
 }
 
+func (r *tempUnschedulableOpenAIAccountRepo) SetOverloaded(_ context.Context, _ int64, _ time.Time) error {
+	return nil
+}
+
 func (r *tempUnschedulableOpenAIAccountRepo) SetModelRateLimit(_ context.Context, accountID int64, modelKey string, _ time.Time, _ ...string) error {
 	r.modelRateLimitAccountID = accountID
 	r.modelRateLimitKey = modelKey

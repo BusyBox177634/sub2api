@@ -251,6 +251,9 @@ func (s *OpenAIGatewayService) scanCCStream(
 	logPrefix string,
 	requestID string,
 	startTime time.Time,
+	c *gin.Context,
+	account *Account,
+	requestedModel string,
 	emit func(*apicompat.ChatCompletionsChunk),
 ) ccStreamScanState {
 	var st ccStreamScanState
@@ -270,6 +273,15 @@ func (s *OpenAIGatewayService) scanCCStream(
 			st.SawDone = true
 			break
 		}
+		// Chat Completions-compatible providers may send an application-level
+		// error frame on an otherwise successful SSE response. Let the shared
+		// OpenAI overload matcher inspect it; ordinary chunks are ignored by the
+		// matcher and retain the existing conversion behavior.
+		var stateCtx context.Context
+		if c != nil && c.Request != nil {
+			stateCtx = c.Request.Context()
+		}
+		s.applyOpenAIOverloadCooldownOnce(c, stateCtx, account, resp.Header, []byte(payload), "", requestedModel)
 
 		if u := extractCCStreamUsage(payload); u != nil {
 			st.Usage = *u

@@ -22,10 +22,18 @@ type capacityShedAccountRepoStub struct {
 	AccountRepository // 嵌入接口，未实现的方法会 panic（不应被调用）
 
 	tempUnschedCalls int
+	overloadCalls    int
+	lastOverloadEnd  time.Time
 }
 
 func (r *capacityShedAccountRepoStub) SetTempUnschedulable(_ context.Context, _ int64, _ time.Time, _ string) error {
 	r.tempUnschedCalls++
+	return nil
+}
+
+func (r *capacityShedAccountRepoStub) SetOverloaded(_ context.Context, _ int64, until time.Time) error {
+	r.overloadCalls++
+	r.lastOverloadEnd = until
 	return nil
 }
 
@@ -77,6 +85,125 @@ func TestStreamFailedEventCapacityShedRetriesOnSameAccount(t *testing.T) {
 	require.False(t, openAIStreamFailedEventRetryableOnSameAccount(nonPool, other, "boom"))
 }
 
+func TestOpenAIOverloadCooldownSignalMatchesProviderMessages(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		body    []byte
+	}{
+		{
+			name:    "concurrency message",
+			message: openAIConcurrencyLimitExceededMessage,
+		},
+		{
+			name: "nested response error",
+			body: []byte(`{"response":{"error":{"message":"Selected model is at capacity. Please try again later."}}}`),
+		},
+		{
+			name: "detail field",
+			body: []byte(`{"detail":"Concurrency limit exceeded for account, please retry later"}`),
+		},
+		{
+			name: "sse error frame",
+			body: []byte("event: error\ndata: {\"type\":\"error\",\"error\":{\"message\":\"Our servers are currently overloaded. Please try again later.\"}}\n\n"),
+		},
+		{
+			name: "plain text with punctuation",
+			body: []byte("Our servers are currently overloaded! Please try again later"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &capacityShedAccountRepoStub{}
+			svc := &OpenAIGatewayService{
+				rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil, nil),
+			}
+			account := &Account{ID: 7001, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+			require.True(t, isOpenAIOverloadCooldownSignal(tc.message, tc.body))
+			require.True(t, svc.applyOpenAIOverloadCooldown(context.Background(), account, nil, tc.body, tc.message))
+			require.Equal(t, 1, repo.overloadCalls)
+			require.WithinDuration(t, time.Now().Add(10*time.Minute), repo.lastOverloadEnd, 2*time.Second)
+		})
+	}
+}
+
+func TestOpenAIAccountUpstreamError_ApplicationOverloadMessagesPauseAccount(t *testing.T) {
+	cases := []struct {
+		name string
+		body []byte
+	}{
+		{
+			name: "concurrency limit",
+			body: []byte(`{"error":{"message":"Concurrency limit exceeded for account, please retry later"}}`),
+		},
+		{
+			name: "servers overloaded",
+			body: []byte(`{"error":{"message":"Our servers are currently overloaded. Please try again later"}}`),
+		},
+		{
+			name: "selected model capacity",
+			body: []byte(`{"error":{"message":"Selected model is at capacity"}}`),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &capacityShedAccountRepoStub{}
+			svc := &OpenAIGatewayService{
+				rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil, nil),
+			}
+			account := &Account{ID: 7004, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+
+			require.False(t, svc.handleOpenAIAccountUpstreamError(
+				context.Background(), account, http.StatusBadRequest, http.Header{}, tc.body, "gpt-5.5",
+			))
+			require.Equal(t, 1, repo.overloadCalls)
+			require.WithinDuration(t, time.Now().Add(10*time.Minute), repo.lastOverloadEnd, 2*time.Second)
+		})
+	}
+}
+
+func TestOpenAIOverloadCooldownWritesAfterRequestCancellation(t *testing.T) {
+	repo := &capacityShedAccountRepoStub{}
+	svc := &OpenAIGatewayService{
+		rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil, nil),
+	}
+	account := &Account{ID: 7003, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.True(t, svc.applyOpenAIOverloadCooldown(
+		ctx,
+		account,
+		nil,
+		nil,
+		openAIConcurrencyLimitExceededMessage,
+	))
+	require.Equal(t, 1, repo.overloadCalls)
+}
+
+func TestOpenAIOverloadCooldownSignalSkipsPoolMode(t *testing.T) {
+	repo := &capacityShedAccountRepoStub{}
+	svc := &OpenAIGatewayService{
+		rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil, nil),
+	}
+	account := &Account{
+		ID:       7002,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"pool_mode": true,
+		},
+	}
+
+	require.False(t, svc.applyOpenAIOverloadCooldown(
+		context.Background(), account, nil, nil, openAISelectedModelAtCapacityMessage,
+	))
+	require.Zero(t, repo.overloadCalls)
+}
+
 // 上游降载的真实序列是「event: error → event: response.failed」。error 帧不算
 // 客户端输出：若把它当首输出 flush，clientOutputStarted 被固化，随后的 failed
 // 事件就进不了 pre-output failover 分支，只能把致命错误原样转发给客户端。
@@ -103,13 +230,15 @@ func TestOpenAIStreamErrorFrameDoesNotStartClientOutput(t *testing.T) {
 }
 
 // 回归用例（真实上游降载序列）：created → in_progress → error 帧 → response.failed。
-// 期望仍然走 pre-output failover（同账号重试 + 请求级瞬时标记），且不向客户端写出任何字节。
+// 文案命中后，非池账号按 503 过载处理；原有首个输出前 failover 语义保持不变。
 func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	}
-	svc := &OpenAIGatewayService{cfg: cfg}
+	repo := &capacityShedAccountRepoStub{}
+	rateLimitService := NewRateLimitService(repo, nil, cfg, nil, nil)
+	svc := &OpenAIGatewayService{cfg: cfg, rateLimitService: rateLimitService}
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -140,6 +269,8 @@ func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *test
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.RetryableOnSameAccount)
 	require.True(t, failoverErr.RequestScopedTransient)
+	require.Equal(t, 1, repo.overloadCalls)
+	require.WithinDuration(t, time.Now().Add(10*time.Minute), repo.lastOverloadEnd, 2*time.Second)
 	require.False(t, c.Writer.Written())
 	require.Empty(t, rec.Body.String())
 }
@@ -152,7 +283,9 @@ func TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient(t *testing.T) 
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	}
-	svc := &OpenAIGatewayService{cfg: cfg}
+	repo := &capacityShedAccountRepoStub{}
+	rateLimitService := NewRateLimitService(repo, nil, cfg, nil, nil)
+	svc := &OpenAIGatewayService{cfg: cfg, rateLimitService: rateLimitService}
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -188,6 +321,7 @@ func TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient(t *testing.T) 
 	require.Contains(t, body, `"code":"server_error"`)
 	require.NotContains(t, body, "server_is_overloaded")
 	require.Contains(t, body, "Our servers are currently overloaded")
+	require.Equal(t, 1, repo.overloadCalls)
 }
 
 // helper 单测：只有降载码被改写，其余错误码（尤其 rate_limit_exceeded，客户端
