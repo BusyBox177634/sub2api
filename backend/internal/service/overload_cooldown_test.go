@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +87,27 @@ func TestGetOverloadCooldownSettings_ReadsFromDB(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, settings.Enabled)
 	require.Equal(t, 30, settings.CooldownMinutes)
+}
+
+func TestGetOverloadCooldownSettings_LegacyConfigGetsDefaultOpenAIMessages(t *testing.T) {
+	repo := newMockSettingRepo()
+	repo.data[SettingKeyOverloadCooldownSettings] = `{"enabled":true,"cooldown_minutes":15}`
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings, err := svc.GetOverloadCooldownSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, DefaultOpenAIOverloadCooldownMessages(), settings.OpenAIOverloadMessages)
+}
+
+func TestGetOverloadCooldownSettings_ExplicitEmptyOpenAIMessageListIsPreserved(t *testing.T) {
+	repo := newMockSettingRepo()
+	repo.data[SettingKeyOverloadCooldownSettings] = `{"enabled":true,"cooldown_minutes":15,"openai_overload_messages":[]}`
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings, err := svc.GetOverloadCooldownSettings(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, settings.OpenAIOverloadMessages)
+	require.Empty(t, settings.OpenAIOverloadMessages)
 }
 
 func TestGetOverloadCooldownSettings_ClampsMinValue(t *testing.T) {
@@ -197,6 +219,38 @@ func TestSetOverloadCooldownSettings_AcceptsBoundaries(t *testing.T) {
 		})
 		require.NoError(t, err, "should accept cooldown_minutes=%d", minutes)
 	}
+}
+
+func TestSetOverloadCooldownSettings_NormalizesOpenAIMessageList(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.SetOverloadCooldownSettings(context.Background(), &OverloadCooldownSettings{
+		Enabled:         true,
+		CooldownMinutes: 15,
+		OpenAIOverloadMessages: []string{
+			"  Custom overload message.  ",
+			"custom overload message",
+			"A separate capacity error",
+			"",
+		},
+	})
+	require.NoError(t, err)
+
+	settings, err := svc.GetOverloadCooldownSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []string{"Custom overload message.", "A separate capacity error"}, settings.OpenAIOverloadMessages)
+}
+
+func TestSetOverloadCooldownSettings_RejectsOversizedOpenAIMessage(t *testing.T) {
+	svc := NewSettingService(newMockSettingRepo(), &config.Config{})
+	err := svc.SetOverloadCooldownSettings(context.Background(), &OverloadCooldownSettings{
+		Enabled:                true,
+		CooldownMinutes:        15,
+		OpenAIOverloadMessages: []string{strings.Repeat("x", maxOpenAIOverloadCooldownMessageRunes+1)},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "openai_overload_messages entries")
 }
 
 // ===========================================================================
@@ -365,6 +419,77 @@ func TestHandleConfirmedOverloadSignal_DisabledSettingSkipsAccount(t *testing.T)
 	require.Zero(t, accountRepo.overloadCalls)
 }
 
+func TestOpenAIOverloadCooldown_UsesConfiguredApplicationMessages(t *testing.T) {
+	accountRepo := &overloadAccountRepoStub{}
+	settingRepo := newMockSettingRepo()
+	settingRepo.data[SettingKeyOverloadCooldownSettings] = `{"enabled":true,"cooldown_minutes":10,"openai_overload_messages":["Custom upstream capacity exhausted"]}`
+	settingSvc := NewSettingService(settingRepo, &config.Config{})
+	rateLimitSvc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rateLimitSvc.SetSettingService(settingSvc)
+	gateway := &OpenAIGatewayService{
+		settingService:   settingSvc,
+		rateLimitService: rateLimitSvc,
+	}
+	cases := []struct {
+		name    string
+		message string
+		body    []byte
+	}{
+		{
+			name: "http json error",
+			body: []byte(`{"error":{"message":"Custom upstream capacity exhausted. Please retry later."}}`),
+		},
+		{
+			name: "sse error frame",
+			body: []byte("event: error\ndata: {\"type\":\"error\",\"error\":{\"message\":\"Custom upstream capacity exhausted. Please retry later.\"}}\n\n"),
+		},
+		{
+			name: "websocket error event",
+			body: []byte(`{"type":"error","error":{"message":"Custom upstream capacity exhausted. Please retry later."}}`),
+		},
+	}
+
+	for index, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			account := &Account{ID: int64(106 + index), Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+			require.True(t, gateway.applyOpenAIOverloadCooldown(
+				context.Background(), account, nil, tc.body, tc.message,
+			))
+			require.Equal(t, index+1, accountRepo.overloadCalls)
+		})
+	}
+
+	account := &Account{ID: 110, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	require.False(t, gateway.applyOpenAIOverloadCooldown(
+		context.Background(), account, nil, nil, openAISelectedModelAtCapacityMessage,
+	))
+	require.Equal(t, len(cases), accountRepo.overloadCalls)
+}
+
+func TestOpenAIOverloadCooldown_EmptyConfiguredMessageListOnlyDisablesApplicationSignals(t *testing.T) {
+	accountRepo := &overloadAccountRepoStub{}
+	settingRepo := newMockSettingRepo()
+	settingRepo.data[SettingKeyOverloadCooldownSettings] = `{"enabled":true,"cooldown_minutes":10,"openai_overload_messages":[]}`
+	settingSvc := NewSettingService(settingRepo, &config.Config{})
+	rateLimitSvc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rateLimitSvc.SetSettingService(settingSvc)
+	gateway := &OpenAIGatewayService{
+		settingService:   settingSvc,
+		rateLimitService: rateLimitSvc,
+	}
+	account := &Account{ID: 107, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+	require.False(t, gateway.applyOpenAIOverloadCooldown(
+		context.Background(), account, nil, nil, openAIProcessingRequestErrorMessage,
+	))
+	require.Zero(t, accountRepo.overloadCalls)
+
+	require.False(t, rateLimitSvc.HandleUpstreamError(
+		context.Background(), account, http.StatusServiceUnavailable, http.Header{}, []byte(`{"error":{"message":"upstream unavailable"}}`),
+	))
+	require.Equal(t, 1, accountRepo.overloadCalls)
+}
+
 func TestHandleUpstreamError_Custom502UsesCustomErrorPolicy(t *testing.T) {
 	accountRepo := &overloadAccountRepoStub{}
 	svc := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
@@ -428,10 +553,15 @@ func TestDefaultOverloadCooldownSettings(t *testing.T) {
 	d := DefaultOverloadCooldownSettings()
 	require.True(t, d.Enabled)
 	require.Equal(t, 10, d.CooldownMinutes)
+	require.Equal(t, DefaultOpenAIOverloadCooldownMessages(), d.OpenAIOverloadMessages)
 }
 
 func TestOverloadCooldownSettings_JSONRoundTrip(t *testing.T) {
-	original := OverloadCooldownSettings{Enabled: false, CooldownMinutes: 42}
+	original := OverloadCooldownSettings{
+		Enabled:                false,
+		CooldownMinutes:        42,
+		OpenAIOverloadMessages: []string{"Custom overload message"},
+	}
 	data, err := json.Marshal(original)
 	require.NoError(t, err)
 
@@ -444,6 +574,8 @@ func TestOverloadCooldownSettings_JSONRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &raw))
 	_, hasEnabled := raw["enabled"]
 	_, hasCooldown := raw["cooldown_minutes"]
+	_, hasOpenAIMessages := raw["openai_overload_messages"]
 	require.True(t, hasEnabled, "JSON must use 'enabled'")
 	require.True(t, hasCooldown, "JSON must use 'cooldown_minutes'")
+	require.True(t, hasOpenAIMessages, "JSON must use 'openai_overload_messages'")
 }

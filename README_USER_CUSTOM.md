@@ -35,10 +35,12 @@
   - `Concurrency limit exceeded for account, please retry later`
   - `Our servers are currently overloaded. Please try again later`
   - `Selected model is at capacity`
+  - `An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com`
 - 这些文案可能出现在普通 JSON 错误、Responses SSE 的 `error`/`response.failed` 事件或 WebSocket 事件中；命中后会按当前“过载冷却”系统设置把非池模式 OpenAI 账号暂时设为不可调度。
-- 过载冷却默认启用、默认时长为 10 分钟；管理员仍可在“系统设置”中关闭或调整现有过载冷却设置。
+- 过载冷却默认启用、默认时长为 10 分钟。管理员可在“系统设置 → 网关服务 → 502/503/529 过载冷却”逐行编辑 OpenAI 应用层过载文案，或恢复默认文案。
+- 保存空文案列表会关闭 OpenAI 应用层文案触发，但不会关闭真实 HTTP `502/503/529` 的既有冷却处理；旧版管理客户端未提交该字段时会保留当前列表。
 - 池模式账号沿用原有池模式处理，不因上述文案写入账号级过载冷却。
-- 该修复不新增接口、配置项或数据库迁移；客户端收到的状态码、响应体和流式转发语义保持不变。
+- 设置通过现有 `/api/v1/admin/settings/overload-cooldown` 管理接口持久化，不需要数据库迁移；客户端收到的状态码、响应体和流式转发语义保持不变。
 
 ### 运维监控磁盘容量
 

@@ -15,6 +15,7 @@ const {
   updateWebSearchEmulationConfig,
   getAdminApiKey,
   getOverloadCooldownSettings,
+  updateOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
   getPanelRateLimitSettings,
@@ -43,6 +44,7 @@ const {
   updateWebSearchEmulationConfig: vi.fn(),
   getAdminApiKey: vi.fn(),
   getOverloadCooldownSettings: vi.fn(),
+  updateOverloadCooldownSettings: vi.fn(),
   getRateLimit429CooldownSettings: vi.fn(),
   updateRateLimit429CooldownSettings: vi.fn(),
   getPanelRateLimitSettings: vi.fn().mockResolvedValue({
@@ -90,6 +92,7 @@ vi.mock("@/api", () => ({
       updateWebSearchEmulationConfig,
       getAdminApiKey,
       getOverloadCooldownSettings,
+      updateOverloadCooldownSettings,
       getRateLimit429CooldownSettings,
       updateRateLimit429CooldownSettings,
       getPanelRateLimitSettings,
@@ -628,6 +631,7 @@ describe("admin SettingsView payment visible method controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    updateOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
@@ -669,7 +673,10 @@ describe("admin SettingsView payment visible method controls", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+      openai_overload_messages: [],
+      default_openai_overload_messages: [],
     });
+    updateOverloadCooldownSettings.mockImplementation(async (payload) => payload);
     getRateLimit429CooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_seconds: 5,
@@ -1293,6 +1300,50 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(showSuccess).toHaveBeenCalledWith("上游倍率自动探测设置已保存");
   });
 
+  it("manages OpenAI application overload messages from the gateway tab", async () => {
+    const defaults = [
+      "Concurrency limit exceeded for account, please retry later",
+      "Our servers are currently overloaded. Please try again later",
+      "Selected model is at capacity",
+      "An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com",
+    ];
+    getOverloadCooldownSettings.mockResolvedValueOnce({
+      enabled: true,
+      cooldown_minutes: 15,
+      openai_overload_messages: ["Existing capacity notice"],
+      default_openai_overload_messages: defaults,
+    });
+    updateOverloadCooldownSettings.mockImplementation(async (payload) => ({
+      ...payload,
+      default_openai_overload_messages: defaults,
+    }));
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openGatewayTab(wrapper);
+
+    const messages = wrapper.get('[data-testid="openai-overload-messages"]');
+    expect((messages.element as HTMLTextAreaElement).value).toBe(
+      "Existing capacity notice",
+    );
+
+    await messages.setValue("Custom capacity notice\ncustom capacity notice\nSecond notice");
+    await wrapper.get('[data-testid="overload-cooldown-save"]').trigger("click");
+    await flushPromises();
+
+    expect(updateOverloadCooldownSettings).toHaveBeenCalledWith({
+      enabled: true,
+      cooldown_minutes: 15,
+      openai_overload_messages: ["Custom capacity notice", "Second notice"],
+    });
+
+    await messages.setValue("Temporary notice");
+    await wrapper
+      .get('[data-testid="openai-overload-messages-restore-defaults"]')
+      .trigger("click");
+    expect((messages.element as HTMLTextAreaElement).value).toBe(defaults.join("\n"));
+  });
+
   it("loads and saves configurable Grok cross-client model mapping", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
@@ -1499,6 +1550,7 @@ describe("admin SettingsView wechat connect controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    updateOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
@@ -1745,6 +1797,7 @@ describe("admin SettingsView platform quota matrix", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    updateOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
     getStreamTimeoutSettings.mockReset();

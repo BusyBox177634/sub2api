@@ -1090,6 +1090,11 @@ export default {
         enabledHint: '收到 502、503 或 529 错误时暂停该账号的调度，冷却后自动恢复',
         cooldownMinutes: '冷却时长（分钟）',
         cooldownMinutesHint: '账号暂停调度的持续时间（1-120 分钟）',
+        openaiMessages: 'OpenAI 应用层过载文案',
+        openaiMessagesPlaceholder: '一行一条上游错误文案',
+        openaiMessagesHint: '一行一条；匹配后会触发 OpenAI 账号冷却。清空列表仅关闭应用层文案触发，不影响真实 HTTP 502/503/529。',
+        messageCount: '{count} 条',
+        restoreDefaults: '恢复默认文案',
         saved: '过载冷却设置保存成功',
         saveFailed: '保存过载冷却设置失败'
       },

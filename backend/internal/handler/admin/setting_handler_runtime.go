@@ -60,15 +60,18 @@ func (h *SettingHandler) GetOverloadCooldownSettings(c *gin.Context) {
 	}
 
 	response.Success(c, dto.OverloadCooldownSettings{
-		Enabled:         settings.Enabled,
-		CooldownMinutes: settings.CooldownMinutes,
+		Enabled:                       settings.Enabled,
+		CooldownMinutes:               settings.CooldownMinutes,
+		OpenAIOverloadMessages:        append([]string{}, settings.OpenAIOverloadMessages...),
+		DefaultOpenAIOverloadMessages: service.DefaultOpenAIOverloadCooldownMessages(),
 	})
 }
 
 // UpdateOverloadCooldownSettingsRequest 更新 502/503/529 过载冷却配置请求
 type UpdateOverloadCooldownSettingsRequest struct {
-	Enabled         bool `json:"enabled"`
-	CooldownMinutes int  `json:"cooldown_minutes"`
+	Enabled                bool      `json:"enabled"`
+	CooldownMinutes        int       `json:"cooldown_minutes"`
+	OpenAIOverloadMessages *[]string `json:"openai_overload_messages"`
 }
 
 // UpdateOverloadCooldownSettings 更新 502/503/529 过载冷却配置
@@ -84,6 +87,18 @@ func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
 		Enabled:         req.Enabled,
 		CooldownMinutes: req.CooldownMinutes,
 	}
+	if req.OpenAIOverloadMessages != nil {
+		settings.OpenAIOverloadMessages = append([]string{}, (*req.OpenAIOverloadMessages)...)
+	} else {
+		// The original endpoint did not include this field. Preserve an existing
+		// custom list when an older client updates only the enable flag or duration.
+		current, err := h.settingService.GetOverloadCooldownSettings(c.Request.Context())
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		settings.OpenAIOverloadMessages = append([]string{}, current.OpenAIOverloadMessages...)
+	}
 
 	if err := h.settingService.SetOverloadCooldownSettings(c.Request.Context(), settings); err != nil {
 		response.BadRequest(c, err.Error())
@@ -97,8 +112,10 @@ func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
 	}
 
 	response.Success(c, dto.OverloadCooldownSettings{
-		Enabled:         updatedSettings.Enabled,
-		CooldownMinutes: updatedSettings.CooldownMinutes,
+		Enabled:                       updatedSettings.Enabled,
+		CooldownMinutes:               updatedSettings.CooldownMinutes,
+		OpenAIOverloadMessages:        append([]string{}, updatedSettings.OpenAIOverloadMessages...),
+		DefaultOpenAIOverloadMessages: service.DefaultOpenAIOverloadCooldownMessages(),
 	})
 }
 

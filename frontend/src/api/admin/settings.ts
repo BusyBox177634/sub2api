@@ -1269,6 +1269,14 @@ export async function deleteAdminApiKey(): Promise<{ message: string }> {
 export interface OverloadCooldownSettings {
   enabled: boolean;
   cooldown_minutes: number;
+  openai_overload_messages: string[];
+  default_openai_overload_messages: string[];
+}
+
+export interface UpdateOverloadCooldownSettings {
+  enabled: boolean;
+  cooldown_minutes: number;
+  openai_overload_messages?: string[];
 }
 
 export async function getOverloadCooldownSettings(): Promise<OverloadCooldownSettings> {
@@ -1279,7 +1287,7 @@ export async function getOverloadCooldownSettings(): Promise<OverloadCooldownSet
 }
 
 export async function updateOverloadCooldownSettings(
-  settings: OverloadCooldownSettings,
+  settings: UpdateOverloadCooldownSettings,
 ): Promise<OverloadCooldownSettings> {
   const { data } = await apiClient.put<OverloadCooldownSettings>(
     "/admin/settings/overload-cooldown",

@@ -1096,6 +1096,11 @@ export default {
         enabledHint: 'Pause account scheduling on 502, 503, or 529 errors, auto-recover after cooldown',
         cooldownMinutes: 'Cooldown Duration (minutes)',
         cooldownMinutesHint: 'Duration to pause account scheduling (1-120 minutes)',
+        openaiMessages: 'OpenAI Application Overload Messages',
+        openaiMessagesPlaceholder: 'One upstream error message per line',
+        openaiMessagesHint: 'One per line. Matches trigger OpenAI account cooldown. An empty list only disables application-level message triggers; real HTTP 502/503/529 handling remains enabled.',
+        messageCount: '{count} messages',
+        restoreDefaults: 'Restore Default Messages',
         saved: 'Overload cooldown settings saved',
         saveFailed: 'Failed to save overload cooldown settings'
       },

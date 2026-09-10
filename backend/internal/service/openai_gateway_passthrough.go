@@ -1353,7 +1353,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				}
 			}
 			eventType := strings.TrimSpace(gjson.Get(trimmedData, "type").String())
-			if eventType == "error" || (eventType == "" && isOpenAIOverloadCooldownSignal("", dataBytes)) {
+			if eventType == "error" || (eventType == "" && mayContainOpenAIOverloadCooldownSignal("", dataBytes)) {
 				errorMessage := extractOpenAISSEErrorMessage(dataBytes)
 				var stateCtx context.Context
 				if c != nil && c.Request != nil {

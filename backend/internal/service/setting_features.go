@@ -689,6 +689,16 @@ func (s *SettingService) GetOverloadCooldownSettings(ctx context.Context) (*Over
 	if settings.CooldownMinutes > 120 {
 		settings.CooldownMinutes = 120
 	}
+	if settings.OpenAIOverloadMessages == nil {
+		// Older persisted settings predate this field. Missing and null retain
+		// the built-in defaults, while an explicit [] remains an administrator's
+		// choice to disable application-level message matching.
+		settings.OpenAIOverloadMessages = DefaultOpenAIOverloadCooldownMessages()
+	} else if messages, normalizeErr := normalizeOpenAIOverloadCooldownMessages(settings.OpenAIOverloadMessages); normalizeErr != nil {
+		settings.OpenAIOverloadMessages = DefaultOpenAIOverloadCooldownMessages()
+	} else {
+		settings.OpenAIOverloadMessages = messages
+	}
 
 	return &settings, nil
 }
@@ -705,6 +715,15 @@ func (s *SettingService) SetOverloadCooldownSettings(ctx context.Context, settin
 			return fmt.Errorf("cooldown_minutes must be between 1-120")
 		}
 		settings.CooldownMinutes = 10 // 禁用状态下归一化为默认值
+	}
+	if settings.OpenAIOverloadMessages == nil {
+		settings.OpenAIOverloadMessages = DefaultOpenAIOverloadCooldownMessages()
+	} else {
+		messages, err := normalizeOpenAIOverloadCooldownMessages(settings.OpenAIOverloadMessages)
+		if err != nil {
+			return err
+		}
+		settings.OpenAIOverloadMessages = messages
 	}
 
 	data, err := json.Marshal(settings)

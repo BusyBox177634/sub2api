@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"unicode"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -166,38 +165,17 @@ func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string
 	return match(string(upstreamBody))
 }
 
-const (
-	openAIConcurrencyLimitExceededMessage   = "Concurrency limit exceeded for account, please retry later"
-	openAIServersCurrentlyOverloadedMessage = "Our servers are currently overloaded. Please try again later"
-	openAISelectedModelAtCapacityMessage    = "Selected model is at capacity"
-)
-
-var openAIOverloadCooldownMessageFragments = []string{
-	normalizeOpenAIOverloadMessage(openAIConcurrencyLimitExceededMessage),
-	normalizeOpenAIOverloadMessage(openAIServersCurrentlyOverloadedMessage),
-	normalizeOpenAIOverloadMessage(openAISelectedModelAtCapacityMessage),
-}
-
-// normalizeOpenAIOverloadMessage makes matching resilient to capitalization,
-// line wrapping and punctuation differences in provider error payloads.
-func normalizeOpenAIOverloadMessage(text string) string {
-	var b strings.Builder
-	for _, r := range strings.ToLower(text) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			b.WriteRune(r)
-		} else {
-			b.WriteByte(' ')
-		}
-	}
-	return strings.Join(strings.Fields(b.String()), " ")
-}
-
 func isOpenAIOverloadCooldownMessage(text string) bool {
+	return isOpenAIOverloadCooldownMessageWithMessages(text, DefaultOpenAIOverloadCooldownMessages())
+}
+
+func isOpenAIOverloadCooldownMessageWithMessages(text string, messages []string) bool {
 	normalized := normalizeOpenAIOverloadMessage(text)
 	if normalized == "" {
 		return false
 	}
-	for _, fragment := range openAIOverloadCooldownMessageFragments {
+	for _, message := range messages {
+		fragment := normalizeOpenAIOverloadMessage(message)
 		if fragment != "" && strings.Contains(normalized, fragment) {
 			return true
 		}
@@ -211,7 +189,11 @@ func isOpenAIOverloadCooldownMessage(text string) bool {
 // these words cannot accidentally pause an account; plain text is used only
 // for non-JSON upstream error bodies.
 func isOpenAIOverloadCooldownSignal(upstreamMsg string, upstreamBody []byte) bool {
-	if isOpenAIOverloadCooldownMessage(upstreamMsg) {
+	return isOpenAIOverloadCooldownSignalWithMessages(upstreamMsg, upstreamBody, DefaultOpenAIOverloadCooldownMessages())
+}
+
+func isOpenAIOverloadCooldownSignalWithMessages(upstreamMsg string, upstreamBody []byte, messages []string) bool {
+	if isOpenAIOverloadCooldownMessageWithMessages(upstreamMsg, messages) {
 		return true
 	}
 
@@ -225,12 +207,12 @@ func isOpenAIOverloadCooldownSignal(upstreamMsg string, upstreamBody []byte) boo
 			"message",
 			"detail",
 		} {
-			if isOpenAIOverloadCooldownMessage(gjson.GetBytes(payload, path).String()) {
+			if isOpenAIOverloadCooldownMessageWithMessages(gjson.GetBytes(payload, path).String(), messages) {
 				return true
 			}
 		}
 		if !gjson.ValidBytes(payload) && !bodyHasSSEFraming(payload) {
-			return isOpenAIOverloadCooldownMessage(string(payload))
+			return isOpenAIOverloadCooldownMessageWithMessages(string(payload), messages)
 		}
 		return false
 	}
@@ -250,6 +232,76 @@ func isOpenAIOverloadCooldownSignal(upstreamMsg string, upstreamBody []byte) boo
 	return found
 }
 
+// mayContainOpenAIOverloadCooldownSignal cheaply screens a payload before
+// loading the administrator-configured message list. It keeps ordinary stream
+// chunks from causing a settings lookup per token.
+func mayContainOpenAIOverloadCooldownSignal(upstreamMsg string, upstreamBody []byte) bool {
+	if strings.TrimSpace(upstreamMsg) != "" {
+		return true
+	}
+
+	mayContainPayload := func(payload []byte) bool {
+		if len(payload) == 0 {
+			return false
+		}
+		if !gjson.ValidBytes(payload) {
+			return !bodyHasSSEFraming(payload) && strings.TrimSpace(string(payload)) != ""
+		}
+		for _, path := range []string{
+			"error.message",
+			"response.error.message",
+			"message",
+			"detail",
+		} {
+			value := gjson.GetBytes(payload, path)
+			if value.Exists() && strings.TrimSpace(value.String()) != "" {
+				return true
+			}
+		}
+		return false
+	}
+
+	if mayContainPayload(upstreamBody) {
+		return true
+	}
+	if len(upstreamBody) == 0 || !bodyHasSSEFraming(upstreamBody) {
+		return false
+	}
+	found := false
+	forEachOpenAISSEDataPayload(string(upstreamBody), func(payload []byte) {
+		if !found && mayContainPayload(payload) {
+			found = true
+		}
+	})
+	return found
+}
+
+func (s *OpenAIGatewayService) openAIOverloadCooldownMessages(ctx context.Context) []string {
+	if s == nil {
+		return DefaultOpenAIOverloadCooldownMessages()
+	}
+
+	settingService := s.settingService
+	if (settingService == nil || settingService.settingRepo == nil) && s.rateLimitService != nil {
+		settingService = s.rateLimitService.settingService
+	}
+	if settingService == nil || settingService.settingRepo == nil {
+		return DefaultOpenAIOverloadCooldownMessages()
+	}
+
+	stateCtx, cancel := openAIAccountStateContext(ctx)
+	defer cancel()
+	settings, err := settingService.GetOverloadCooldownSettings(stateCtx)
+	if err != nil || settings == nil || settings.OpenAIOverloadMessages == nil {
+		return DefaultOpenAIOverloadCooldownMessages()
+	}
+	return settings.OpenAIOverloadMessages
+}
+
+func (s *OpenAIGatewayService) isOpenAIOverloadCooldownSignal(ctx context.Context, upstreamMsg string, upstreamBody []byte) bool {
+	return isOpenAIOverloadCooldownSignalWithMessages(upstreamMsg, upstreamBody, s.openAIOverloadCooldownMessages(ctx))
+}
+
 // applyOpenAIOverloadCooldown applies the account-level overload policy for a
 // verified OpenAI application error. The boolean reports whether the payload
 // matched an account-scoped signal, even when the rate-limit service is not
@@ -262,8 +314,30 @@ func (s *OpenAIGatewayService) applyOpenAIOverloadCooldown(
 	upstreamMsg string,
 	requestedModel ...string,
 ) bool {
-	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() ||
-		!isOpenAIOverloadCooldownSignal(upstreamMsg, responseBody) {
+	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !mayContainOpenAIOverloadCooldownSignal(upstreamMsg, responseBody) {
+		return false
+	}
+	if !s.isOpenAIOverloadCooldownSignal(ctx, upstreamMsg, responseBody) {
+		return false
+	}
+	return s.applyOpenAIOverloadCooldownConfirmed(ctx, account, headers, responseBody, upstreamMsg, requestedModel...)
+}
+
+func (s *OpenAIGatewayService) applyOpenAIOverloadCooldownConfirmed(
+	ctx context.Context,
+	account *Account,
+	headers http.Header,
+	responseBody []byte,
+	upstreamMsg string,
+	requestedModel ...string,
+) bool {
+	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() {
 		return false
 	}
 	if ctx == nil {
@@ -323,8 +397,16 @@ func (s *OpenAIGatewayService) applyOpenAIOverloadCooldownOnce(
 	upstreamMsg string,
 	requestedModel ...string,
 ) bool {
-	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() ||
-		!isOpenAIOverloadCooldownSignal(upstreamMsg, responseBody) {
+	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.IsPoolMode() {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !mayContainOpenAIOverloadCooldownSignal(upstreamMsg, responseBody) {
+		return false
+	}
+	if !s.isOpenAIOverloadCooldownSignal(ctx, upstreamMsg, responseBody) {
 		return false
 	}
 
@@ -346,7 +428,7 @@ func (s *OpenAIGatewayService) applyOpenAIOverloadCooldownOnce(
 		state.mu.Unlock()
 	}
 
-	return s.applyOpenAIOverloadCooldown(ctx, account, headers, responseBody, upstreamMsg, requestedModel...)
+	return s.applyOpenAIOverloadCooldownConfirmed(ctx, account, headers, responseBody, upstreamMsg, requestedModel...)
 }
 
 func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {

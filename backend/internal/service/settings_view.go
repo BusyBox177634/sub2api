@@ -1,6 +1,11 @@
 package service
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
@@ -561,6 +566,9 @@ type OverloadCooldownSettings struct {
 	Enabled bool `json:"enabled"`
 	// CooldownMinutes 冷却时长（分钟）
 	CooldownMinutes int `json:"cooldown_minutes"`
+	// OpenAIOverloadMessages 是会触发 OpenAI 应用层过载冷却的上游文案。
+	// nil 仅用于兼容旧配置，读取时会回退到默认文案；空数组表示显式关闭文案触发。
+	OpenAIOverloadMessages []string `json:"openai_overload_messages"`
 }
 
 // RateLimit429CooldownSettings 429默认回避配置
@@ -571,11 +579,83 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int `json:"cooldown_seconds"`
 }
 
+const (
+	maxOpenAIOverloadCooldownMessages       = 50
+	maxOpenAIOverloadCooldownMessageRunes   = 1024
+	openAIConcurrencyLimitExceededMessage   = "Concurrency limit exceeded for account, please retry later"
+	openAIServersCurrentlyOverloadedMessage = "Our servers are currently overloaded. Please try again later"
+	openAISelectedModelAtCapacityMessage    = "Selected model is at capacity"
+	openAIProcessingRequestErrorMessage     = "An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com"
+)
+
+var defaultOpenAIOverloadCooldownMessages = []string{
+	openAIConcurrencyLimitExceededMessage,
+	openAIServersCurrentlyOverloadedMessage,
+	openAISelectedModelAtCapacityMessage,
+	openAIProcessingRequestErrorMessage,
+}
+
+// DefaultOpenAIOverloadCooldownMessages returns a caller-owned copy of the
+// built-in OpenAI application-error messages that trigger overload cooldown.
+func DefaultOpenAIOverloadCooldownMessages() []string {
+	return append([]string(nil), defaultOpenAIOverloadCooldownMessages...)
+}
+
+// normalizeOpenAIOverloadMessage makes matching resilient to capitalization,
+// line wrapping and punctuation differences in provider error payloads.
+func normalizeOpenAIOverloadMessage(text string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(text) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte(' ')
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// normalizeOpenAIOverloadCooldownMessages trims entries and de-duplicates by
+// the same normalized form used at match time. A non-nil empty list remains
+// empty so administrators can explicitly disable application-level triggers.
+func normalizeOpenAIOverloadCooldownMessages(messages []string) ([]string, error) {
+	if messages == nil {
+		return nil, nil
+	}
+
+	seen := make(map[string]struct{}, len(messages))
+	normalized := make([]string, 0, len(messages))
+	for _, raw := range messages {
+		message := strings.TrimSpace(raw)
+		if message == "" {
+			continue
+		}
+		if utf8.RuneCountInString(message) > maxOpenAIOverloadCooldownMessageRunes {
+			return nil, fmt.Errorf("openai_overload_messages entries must be at most %d characters", maxOpenAIOverloadCooldownMessageRunes)
+		}
+
+		key := normalizeOpenAIOverloadMessage(message)
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(normalized) >= maxOpenAIOverloadCooldownMessages {
+			return nil, fmt.Errorf("openai_overload_messages must contain at most %d entries", maxOpenAIOverloadCooldownMessages)
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, message)
+	}
+	return normalized, nil
+}
+
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）
 func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	return &OverloadCooldownSettings{
-		Enabled:         true,
-		CooldownMinutes: 10,
+		Enabled:                true,
+		CooldownMinutes:        10,
+		OpenAIOverloadMessages: DefaultOpenAIOverloadCooldownMessages(),
 	}
 }
 

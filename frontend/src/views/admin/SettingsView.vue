@@ -265,10 +265,57 @@
                 </div>
 
                 <div
+                  class="space-y-2 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <label
+                      for="openai-overload-messages"
+                      class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.overloadCooldown.openaiMessages") }}
+                    </label>
+                    <span
+                      class="inline-flex shrink-0 rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                    >
+                      {{
+                        t("admin.settings.overloadCooldown.messageCount", {
+                          count: openAIOverloadMessageCount,
+                        })
+                      }}
+                    </span>
+                  </div>
+                  <textarea
+                    id="openai-overload-messages"
+                    data-testid="openai-overload-messages"
+                    v-model="overloadCooldownForm.openai_overload_messages_text"
+                    class="input min-h-40 resize-y font-mono text-sm"
+                    :placeholder="t('admin.settings.overloadCooldown.openaiMessagesPlaceholder')"
+                    :aria-describedby="'openai-overload-messages-hint'"
+                  ></textarea>
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p
+                      id="openai-overload-messages-hint"
+                      class="text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      {{ t("admin.settings.overloadCooldown.openaiMessagesHint") }}
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="openai-overload-messages-restore-defaults"
+                      class="btn btn-secondary btn-sm shrink-0"
+                      @click="resetOpenAIOverloadMessages"
+                    >
+                      {{ t("admin.settings.overloadCooldown.restoreDefaults") }}
+                    </button>
+                  </div>
+                </div>
+
+                <div
                   class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
                 >
                   <button
                     type="button"
+                    data-testid="overload-cooldown-save"
                     @click="saveOverloadCooldownSettings"
                     :disabled="overloadCooldownSaving"
                     class="btn btn-primary btn-sm"
@@ -8936,7 +8983,22 @@ const overloadCooldownSaving = ref(false);
 const overloadCooldownForm = reactive({
   enabled: true,
   cooldown_minutes: 10,
+  openai_overload_messages_text: [
+    "Concurrency limit exceeded for account, please retry later",
+    "Our servers are currently overloaded. Please try again later",
+    "Selected model is at capacity",
+    "An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com",
+  ].join("\n"),
 });
+const overloadCooldownDefaultMessages = ref<string[]>([
+  "Concurrency limit exceeded for account, please retry later",
+  "Our servers are currently overloaded. Please try again later",
+  "Selected model is at capacity",
+  "An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com",
+]);
+const openAIOverloadMessageCount = computed(
+  () => parseOpenAIOverloadMessages(overloadCooldownForm.openai_overload_messages_text).length,
+);
 
 // Rate Limit Cooldown (429) 状态
 const rateLimit429CooldownLoading = ref(true);
@@ -11763,7 +11825,17 @@ async function loadOverloadCooldownSettings() {
   overloadCooldownLoading.value = true;
   try {
     const settings = await adminAPI.settings.getOverloadCooldownSettings();
-    Object.assign(overloadCooldownForm, settings);
+    overloadCooldownForm.enabled = settings.enabled;
+    overloadCooldownForm.cooldown_minutes = settings.cooldown_minutes;
+    if (Array.isArray(settings.openai_overload_messages)) {
+      overloadCooldownForm.openai_overload_messages_text =
+        settings.openai_overload_messages.join("\n");
+    }
+    if (Array.isArray(settings.default_openai_overload_messages)) {
+      overloadCooldownDefaultMessages.value = [
+        ...settings.default_openai_overload_messages,
+      ];
+    }
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -11777,8 +11849,21 @@ async function saveOverloadCooldownSettings() {
     const updated = await adminAPI.settings.updateOverloadCooldownSettings({
       enabled: overloadCooldownForm.enabled,
       cooldown_minutes: overloadCooldownForm.cooldown_minutes,
+      openai_overload_messages: parseOpenAIOverloadMessages(
+        overloadCooldownForm.openai_overload_messages_text,
+      ),
     });
-    Object.assign(overloadCooldownForm, updated);
+    overloadCooldownForm.enabled = updated.enabled;
+    overloadCooldownForm.cooldown_minutes = updated.cooldown_minutes;
+    if (Array.isArray(updated.openai_overload_messages)) {
+      overloadCooldownForm.openai_overload_messages_text =
+        updated.openai_overload_messages.join("\n");
+    }
+    if (Array.isArray(updated.default_openai_overload_messages)) {
+      overloadCooldownDefaultMessages.value = [
+        ...updated.default_openai_overload_messages,
+      ];
+    }
     appStore.showSuccess(t("admin.settings.overloadCooldown.saved"));
   } catch (error: unknown) {
     appStore.showError(
@@ -11790,6 +11875,25 @@ async function saveOverloadCooldownSettings() {
   } finally {
     overloadCooldownSaving.value = false;
   }
+}
+
+function parseOpenAIOverloadMessages(value: string): string[] {
+  const messages: string[] = [];
+  const seen = new Set<string>();
+  for (const line of value.split(/\r?\n/)) {
+    const message = line.trim();
+    if (!message) continue;
+    const key = message.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    messages.push(message);
+  }
+  return messages;
+}
+
+function resetOpenAIOverloadMessages() {
+  overloadCooldownForm.openai_overload_messages_text =
+    overloadCooldownDefaultMessages.value.join("\n");
 }
 
 // Panel API Rate Limit 方法

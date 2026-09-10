@@ -454,7 +454,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if responseID == "" {
 				responseID = extractOpenAIResponseIDFromJSONBytes(dataBytes)
 			}
-			if eventType == "error" || (eventType == "" && isOpenAIOverloadCooldownSignal("", dataBytes)) {
+			if eventType == "error" || (eventType == "" && mayContainOpenAIOverloadCooldownSignal("", dataBytes)) {
 				errorMessage := extractOpenAISSEErrorMessage(dataBytes)
 				var stateCtx context.Context
 				if c != nil && c.Request != nil {

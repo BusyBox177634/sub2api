@@ -111,6 +111,10 @@ func TestOpenAIOverloadCooldownSignalMatchesProviderMessages(t *testing.T) {
 			name: "plain text with punctuation",
 			body: []byte("Our servers are currently overloaded! Please try again later"),
 		},
+		{
+			name:    "processing request message",
+			message: openAIProcessingRequestErrorMessage + " if the error persists. Please include the request ID req_123 in your message.",
+		},
 	}
 
 	for _, tc := range cases {
@@ -125,6 +129,47 @@ func TestOpenAIOverloadCooldownSignalMatchesProviderMessages(t *testing.T) {
 			require.True(t, svc.applyOpenAIOverloadCooldown(context.Background(), account, nil, tc.body, tc.message))
 			require.Equal(t, 1, repo.overloadCalls)
 			require.WithinDuration(t, time.Now().Add(10*time.Minute), repo.lastOverloadEnd, 2*time.Second)
+		})
+	}
+}
+
+func TestMayContainOpenAIOverloadCooldownSignal(t *testing.T) {
+	testCases := []struct {
+		name    string
+		message string
+		body    []byte
+		want    bool
+	}{
+		{
+			name: "ordinary chat completion chunk",
+			body: []byte(`{"id":"chatcmpl_123","choices":[{"delta":{"content":"hello"}}]}`),
+			want: false,
+		},
+		{
+			name: "json error message",
+			body: []byte(`{"error":{"message":"Custom upstream capacity exhausted"}}`),
+			want: true,
+		},
+		{
+			name: "plain text error",
+			body: []byte("Custom upstream capacity exhausted"),
+			want: true,
+		},
+		{
+			name: "sse error frame",
+			body: []byte("event: error\ndata: {\"error\":{\"message\":\"Custom upstream capacity exhausted\"}}\n\n"),
+			want: true,
+		},
+		{
+			name:    "explicit upstream message",
+			message: "Custom upstream capacity exhausted",
+			want:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, mayContainOpenAIOverloadCooldownSignal(tc.message, tc.body))
 		})
 	}
 }
@@ -145,6 +190,10 @@ func TestOpenAIAccountUpstreamError_ApplicationOverloadMessagesPauseAccount(t *t
 		{
 			name: "selected model capacity",
 			body: []byte(`{"error":{"message":"Selected model is at capacity"}}`),
+		},
+		{
+			name: "processing request",
+			body: []byte(`{"error":{"message":"An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists."}}`),
 		},
 	}
 
